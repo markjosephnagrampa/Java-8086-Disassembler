@@ -8,6 +8,7 @@ public class DisassemblerDriver {
 	public static void main(String[] args) {
 
 		Disassembler disassemble = new Disassembler();
+		Assembler assemble = new Assembler();
 		Scanner input = new Scanner(System.in);
 		int choice = 0;
 		
@@ -17,7 +18,7 @@ public class DisassemblerDriver {
 			choice = input.nextInt();
 			
 			switch (choice) {
-			case 1: disassemble.toJava(); break;
+			case 1: assemble.toJava(); break;
 			case 2: disassemble.toAssembly(); break;
 			case 3: break;
 			
