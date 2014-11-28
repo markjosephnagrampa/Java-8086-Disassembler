@@ -9,33 +9,6 @@ public class Disassembler {
 		d.toAssembly();
 	}
 
-	public void toJava() {
-		String filename = "";
-
-		try {
-			
-			Scanner input = new Scanner (System.in);
-			System.out.println("Enter .asm filename: ");
-			filename = input.nextLine();
-			BufferedReader inputStream = new BufferedReader(new FileReader(filename));
-			//add stuff to do here
-			String line = "";
-			
-			while ((line = inputStream.readLine()) != null) {
-				System.out.println(line);
-			}
-			
-			inputStream.close();
-		}
-		
-		catch (FileNotFoundException e) {
-			System.err.println("File not found.");
-		}
-		catch (IOException e) {
-			System.err.println("Error in filestream.");
-		}
-	} //end function
-
 	public void toAssembly() {
 		
 		String filename = "";
