@@ -1,8 +1,21 @@
 import java.io.*;
 import java.util.Scanner;
 import java.util.ArrayList;
+import java.util.StringTokenizer;
 
 public class Disassembler {
+	
+	//Disassembler Variables
+	static ArrayList<String> toConvert = new ArrayList<String>();
+	static ArrayList<String> dataArray = new ArrayList<String>();
+	static ArrayList<String> codeArray = new ArrayList<String>();
+	static int msgcounter=1;
+	static int ifcount=0;
+	static int ifelsecount=0;
+	static int forcount=0;
+	static int docount=0;
+	static int whilecount=0;
+	static boolean includeDisplay=false;
 	
 	public static void main(String[] args){
 		Disassembler d = new Disassembler();
@@ -12,7 +25,6 @@ public class Disassembler {
 	public void toAssembly() {
 		
 		String filename = "";
-		ArrayList<String> toConvert = new ArrayList<String>();
 
 		try {
 			
@@ -20,19 +32,31 @@ public class Disassembler {
 			System.out.println("Enter .java filename: ");
 			filename = input.nextLine();
 			BufferedReader inputStream = new BufferedReader(new FileReader(filename));
-			//add stuff to do here
-			String line = "";
 			
+			// 1. Place Source Code in a Single String Variable
+			
+			String line = "";
+			String sourceCode="";
 			while ((line = inputStream.readLine()) != null) {
-				System.out.println(line);
-				if (line.contains(".nextLine()")); {
-					toConvert.add(line);
-				}
-				
+				line=line.trim();
+				sourceCode+=line;
 			}
 			
-			inputStream.close();
-			convertToAssembly(toConvert, filename);
+			// 2. Clean Source Code String
+				sourceCode.trim();
+				sourceCode=sourceCode.replace(sourceCode.substring(0,1+sourceCode.indexOf("{")),"");
+				sourceCode=sourceCode.substring(0,sourceCode.length()-2);
+				sourceCode=sourceCode.replace("{","{;");
+				sourceCode=sourceCode.replace("}",";};");
+			// 3. Tokenize sourceCode by Blocks {,} or by ;
+				
+				StringTokenizer st = new StringTokenizer(sourceCode, ";");
+				while (st.hasMoreTokens()) {
+					String token = st.nextToken();
+			        System.out.println(token);
+					toConvert.add(token);
+			     }
+			convertToAssembly(filename);
 			
 		}
 		
@@ -45,104 +69,59 @@ public class Disassembler {
 		
 	} //end function
 	
-	public void convertToAssembly (ArrayList<String> toConvert, String filename) throws IOException {
+	public void convertToAssembly (String filename) throws IOException {
 		
-		ArrayList<String> dataArray = new ArrayList<String>();
-		ArrayList<String> codeArray = new ArrayList<String>();
-		FileInputStream inputStream = new FileInputStream (filename);
-		
-		int counter = 1;
-		String currLine = "";
-		String msgString = "";
 		String display =
-				"\t display proc\n";                           
-				display+= "\t\t mov bx, 10\n";                
-				display+= "\t\t mov dx, 0000h \n";                
-				display+= "\t\t mov cx, 0000h \n";                   
+				"\tdisplay proc\n";                           
+				display+= "\t\tmov bx, 10\n";                
+				display+= "\t\tmov dx, 0000h \n";                
+				display+= "\t\tmov cx, 0000h \n";                   
 
-				display+= "\t\t Dloop1: \n";
-				display+= "\t\t\t mov dx, 0000h \n";                   
-				display+= "\t\t\t div bx \n";                          
-				display+= "\t\t\t push dx \n";                         
-				display+= "\t\t\t inc cx \n";                         
-				display+= "\t\t\t cmp ax, 0 \n";                 
-				display+= "\t\t\t jne Dloop1 \n";         
+				display+= "\t\tDloop1: \n";
+				display+= "\t\t\tmov dx, 0000h \n";                   
+				display+= "\t\t\tdiv bx \n";                          
+				display+= "\t\t\tpush dx \n";                         
+				display+= "\t\t\tinc cx \n";                         
+				display+= "\t\t\tcmp ax, 0 \n";                 
+				display+= "\t\t\tjne Dloop1 \n";         
 
-				display+= "\t\t Dloop2: \n";
-				display+= "\t\t\t pop dx \n";                     
-				display+= "\t\t\t add dx, 30h \n";            
-				display+= "\t\t\t mov ah, 02h \n";                            
-				display+= "\t\t\t int 21h \n";                    
-				display+= "\t\t\t loop Dloop2 \n";             
-				display+= "\t\t ret \n";     
-				display+= "\t display endp \n";
-
-		String  newLine = "\t\t mov dl, 0ah \n";
-				newLine +="\t\t mov ah, 02h \n";
-				newLine += "\t\t int 21h \n";
-		String intString = "";
+				display+= "\t\tDloop2: \n";
+				display+= "\t\t\tpop dx \n";                     
+				display+= "\t\t\tadd dx, 30h \n";            
+				display+= "\t\t\tmov ah, 02h \n";                            
+				display+= "\t\t\tint 21h \n";                    
+				display+= "\t\t\tloop Dloop2 \n";             
+				display+= "\t\tret \n";     
+				display+= "\tdisplay endp \n";
 		String newFilename = "";
-		boolean includeDisplay = false;
 		String title = "title";
 		String model = ".model small";
 		String stack = ".stack 100h";
-		Scanner input = new Scanner(new File(filename));
 		BufferedReader output = new BufferedReader(new InputStreamReader(System.in));
 		PrintWriter outputStream = null;
-				
-		newFilename = getNewFilename(filename);
-		title = title + " " + newFilename;
-		
 		dataArray.add(".data");
 		
 		//add data variables here
-		while (input.hasNextLine()) {
-			currLine = input.nextLine();
+		for(int i=0; i<toConvert.size();i++) {
+			String currLine = toConvert.get(i);
 			
-			//Baklas Structure for if,else for,do,while,do while
-			
-			// 1. Print Message Strings
-			// Cases Handled: System.out.println("Hello world!");
-			if (currLine.contains("System.out")&&currLine.contains("\"")) {
-				msgString = getMsgString (currLine);
-				dataArray.add("\t msg" + counter + " db " +  '\''  + msgString + "\'," + "'$'");	
-				
-				codeArray.add("\t\t lea dx, " + "msg" + counter);
-				codeArray.add("\t\t mov ah, 09h");
-				codeArray.add("\t\t int 21h");
-				codeArray.add(newLine);
-				counter++;
+			//Block Statements
+			if(currLine.contains("{")){
+				//Insert Code for Handling (If,Else,While,etc.)
 			}
-			// 1.2 Print Numbers
-			// Cases Handled: int a = 255; System.out.println(a);
-			else if (currLine.contains("System.out")&&!currLine.contains("\"")) {
-				includeDisplay=true;
-				String numString = getNumString(currLine);
-				codeArray.add("\t\t mov ax, "+numString);
-				codeArray.add("\t\t call display");
-				codeArray.add(newLine);
+			//Line Statement Handler
+			else{
+				//Insert Code for Translating a java Non-Block Statement into Assembly
+				//Set includeDisplay to true if Printing of Variables is required
 			}
-			// 2. Integer Variables (Declaration) int a=12; int b;
-			else if (currLine.contains("int")) {
-				intString = getIntString(currLine);
-				System.out.println(intString);
-				dataArray.add(intString);
-			}
-			// 3. Integer Variables (Assignment) 
-			//Cases Handled: x = 3 + 2; x = 3 - 2; x++; x--; x = 0;
-			else if (currLine.contains("=")||
-				currLine.contains("++")||currLine.contains("--")) {
-				
-				intString = getAssignIntString(currLine);
-				codeArray.add(intString);
-			}
-			
 		}
 		
 		
-		codeArray.add("\t mov ax, 4c00h \n \t int 21h");
-		codeArray.add("\t main endp \n \t end main");
+		codeArray.add("\n\tmov ax, 4c00h \n \tint 21h");
+		codeArray.add("\tmain endp \n \tend main");
 		
+		newFilename = getNewFilename(filename);
+		title = title + " " + newFilename;
 		
 		try {
 			outputStream =  new PrintWriter(new FileOutputStream(newFilename + ".asm"));
@@ -155,14 +134,24 @@ public class Disassembler {
 			
 			outputStream.println(".code");
 			if(includeDisplay){outputStream.println(display);}
-			outputStream.println("\t main proc");
-			outputStream.println("\t mov ax, @data \n \t mov ds, ax");
+			outputStream.println("\tmain proc");
+			outputStream.println("\tmov ax, @data \n \tmov ds, ax\n");
 			
 			
 			for (int f = 0; f < codeArray.size(); f++) {
 				outputStream.println(codeArray.get(f));
 			}
 			outputStream.close();
+			
+			//Print Contents of .asm file
+			for(String item: dataArray){
+				System.out.println(item);
+			}
+			
+			for(String item: codeArray){
+				System.out.println(item);
+			}
+			
 			System.out.println("successful");
 		}
 		
@@ -171,6 +160,108 @@ public class Disassembler {
 			System.exit(0);
 		}
 	}
+	
+	//Block Functions
+	
+	// 1. Function for Converting Non-Block Statements (must know its encapsulating block: { })
+	// defined by { - int start
+	// defined by } - int end
+	// * tabs may be useful for asm code generation - int tabcount
+	public void convertNBToAssembly(int start, int end, int tabcount){
+		
+		//Place Tabs for .asm Code Readability
+		String tab="";
+		for(int j=0;j<tabcount;j++){tab+="\t";}
+		String  newLine = tab+"mov dl, 0ah \n";
+		newLine +=tab+"mov ah, 02h \n";
+		newLine += tab+"int 21h";
+		
+		for(int i=start;i<end;i++){
+			String currLine = toConvert.get(i);
+			
+			// A. Multi-Level Block Handling
+			if(currLine.contains("{")){
+				//Insert Code to Handle Inner If-Else-While, etc. Blocks
+			}
+			
+			// B. Line for Line Converter
+			else{
+				// 1. Print Message Strings
+				// Cases Handled: System.out.println("Hello world!");
+				if (currLine.contains("System.out")&&currLine.contains("\"")) {
+					String msgString = getMsgString (currLine);
+					dataArray.add("\tmsg" + msgcounter + " db " +  '\''  + msgString + "\'," + "'$'");	
+								
+					codeArray.add(tab+"lea dx, " + "msg" + msgcounter);
+					codeArray.add(tab+"mov ah, 09h");
+					codeArray.add(tab+"int 21h");
+					codeArray.add(newLine);
+					msgcounter++;
+				}
+				// 1.2 Print Numbers
+				// Cases Handled: int a = 255; System.out.println(a);
+				else if (currLine.contains("System.out")&&!currLine.contains("\"")) {
+					includeDisplay=true;
+					String numString = getNumString(currLine);
+					codeArray.add(tab+"mov ax, "+numString);
+					codeArray.add(tab+"call display");
+					codeArray.add(newLine);
+				}
+				// 2. Integer Variables (Declaration) int a=12; int b;
+				else if (currLine.contains("int")) {
+					String intString = getIntString(currLine);
+								
+					dataArray.add(intString);
+				}
+				// 3. Integer Variables (Assignment) 
+				//Cases Handled: x = 3 + 2; x = 3 - 2; x++; x--; x = 0;
+				else if (currLine.contains("=")||
+					currLine.contains("++")||currLine.contains("--")) {
+					getAssignIntString(currLine,tabcount);
+				}
+			}
+		}
+		
+	}
+	
+	// 2. Function for Converting Block Statements (If,If-Else,For,Do-While,While)
+	public int convertBToAssembly(int start,String bstate, int tabcount){
+		int i=start;
+		if(bstate.contains("if")){
+			//Differentiate Between If and If-Else Code
+		}
+		else if(bstate.contains("do")){
+			//Add Code for dowhile
+		}
+		else if(bstate.contains("while")){
+			//Add Code for while
+		}
+		else if(bstate.contains("for")){
+			//Add Code for for
+		}
+		return i;
+	}
+	
+	//Block Statement Parser Functions
+	
+	// 1. If Block Converter
+		public void convertIf(int start, int end, int tabcount){
+			// Add Code Here...
+		}
+	// 2. If-Else Block Converter
+	// Contains more arguments because if-else deals with 2 statement blocks
+		public void convertIfElse(int ifstart, int ifend, int elsestart, int elseend, int tabcount){
+			// Add Code Here...
+		}
+	
+	//Helper Functions for Block Statements
+	
+	// 1. Function to find the corresponding '}' of a block statement
+	
+	// 2. If-Else vs If Block Identifier
+	
+	//Miscellaneous Helper Functions
+		
 	// 1. Function for Message Strings
 		public String getMsgString (String currLine) {
 			
@@ -216,42 +307,43 @@ public class Disassembler {
 			String newLine="";
 			currLine=currLine.trim();
 			currLine=currLine.replaceFirst("int", "");
+			currLine=currLine.replaceFirst("static", "");
 			currLine=currLine.replace(" ", "");
 			// First Case: a=0; or a=255;
 			if(currLine.contains("=")){
 				int a = currLine.indexOf("=");
-				int end = currLine.indexOf(";");
+				int end = currLine.length();
 				int value = Integer.parseInt(currLine.substring(a+1,end));
 				String varname = currLine.substring(0,a);
-				newLine ="\t "+ varname + " dw "+ value;
+				newLine ="\t"+ varname + " dw "+ value;
 				
 			}
 			// Second Case: a; longvarname;
 			else{
-				int end = currLine.indexOf(";");
+				int end = currLine.length();
 				String varname = currLine.substring(0,end);
-				newLine ="\t "+ varname + " dw ?";
+				newLine ="\t"+ varname + " dw ?";
 			}
 			return newLine;
 		}// end function
 	
 	// 3. Function for Int Variables (Mid-code Assignment)
-		public String getAssignIntString(String currLine){
-			System.out.println(currLine);
-			String newLine="";
+		public void getAssignIntString(String currLine, int tabcount){
+			String tab="";
+			for(int j=0;j<tabcount;j++){tab+="\t";}
 			currLine=currLine.trim();
 			currLine=currLine.replace(" ","");
 			// x++;
 			if(currLine.contains("++")){
 				int a = currLine.indexOf("+");
 				String varname = currLine.substring(0,a);
-				newLine ="\t\t inc "+ varname;
+				codeArray.add(tab+"inc "+ varname);
 			}
 			// x--;
 			else if(currLine.contains("--")){
 				int a = currLine.indexOf("-");
 				String varname = currLine.substring(0,a);
-				newLine ="\t\t dec "+ varname;
+				codeArray.add(tab+"dec "+ varname);
 			}
 			else{
 				String fOp="";
@@ -259,32 +351,45 @@ public class Disassembler {
 				int a = currLine.indexOf("=");
 				String varname = currLine.substring(0,a);
 				// x=3+2;
-				if(currLine.contains("+")){
-					int findex = currLine.indexOf("+");
+				if(currLine.contains("+")||currLine.contains("-")){
+					String sign = "";
+					String op = "";
+					if(currLine.contains("+")){sign="+";op="add ";}
+					if(currLine.contains("-")){sign="-";op="sub ";}
+					
+					int findex = currLine.indexOf(sign);
+					int end = currLine.length();
 					fOp = currLine.substring(a+1,findex);
-					int end = currLine.indexOf(";");
 					sOp = currLine.substring(findex+1,end);
-					newLine = "\t\t mov "+varname+","+fOp+"\n";
-					newLine += "\t\t add "+varname+","+sOp;
-				}
-				// x = 3 - 2;
-				else if(currLine.contains("-")){
-					int findex = currLine.indexOf("-");
-					fOp = currLine.substring(a+1,findex);
-					int end = currLine.indexOf(";");
-					sOp = currLine.substring(findex+1,end);
-					newLine = "\t\t mov "+varname+","+fOp+"\n";
-					newLine += "\t\t sub "+varname+","+sOp;
+					// x = x + y; x = x - y;
+					if(!isInteger(fOp)){
+						codeArray.add(tab+"mov cx,"+fOp);
+						codeArray.add(tab+"mov "+varname+",cx");
+					}
+					else{
+						codeArray.add(tab+"mov "+varname+","+fOp);
+					}
+					if(!isInteger(sOp)){
+						codeArray.add(tab+"mov cx,"+sOp);
+						codeArray.add(tab+op+varname+",cx");
+					}
+					else{
+						codeArray.add(tab+op+varname+","+sOp);
+					}
 				}
 				// x = 0;
 				else{
 					int eq = currLine.indexOf("=");
-					int end = currLine.indexOf(";");
+					int end = currLine.length();
 					sOp = currLine.substring(eq+1,end);
-					newLine = "\t\t mov "+varname+","+sOp;
+					if(!isInteger(sOp)){
+						codeArray.add(tab+"mov cx,"+sOp);
+						codeArray.add(tab+"mov "+varname+",cx");
+					}
+					else{codeArray.add(tab+"mov "+varname+","+sOp);}
+					
 				}
 			}
-			return newLine;
 		}//end function
 	
 	public String getNewFilename(String filename) {
@@ -298,12 +403,19 @@ public class Disassembler {
 				break;
 			}
 		}
-		
-		System.out.println(d);
 		filename = filename.substring(0, d);
 		return filename;
 		
 	} //end function
+	public static boolean isInteger(String s) {
+	    try { 
+	        Integer.parseInt(s); 
+	    } catch(NumberFormatException e) { 
+	        return false; 
+	    }
+	    // only got here if we didn't return false
+	    return true;
+	}
 	
 	
 } //end class
