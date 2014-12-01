@@ -9,6 +9,8 @@ public class Disassembler {
 	static ArrayList<String> toConvert = new ArrayList<String>();
 	static ArrayList<String> dataArray = new ArrayList<String>();
 	static ArrayList<String> codeArray = new ArrayList<String>();
+	static ArrayList<String> userStr = new ArrayList<String>();
+	static ArrayList<String> charStr = new ArrayList<String>();
 	static int msgcounter=1;
 	static int ifcount=0;
 	static int ifelsecount=0;
@@ -53,7 +55,14 @@ public class Disassembler {
 				StringTokenizer st = new StringTokenizer(sourceCode, ";");
 				while (st.hasMoreTokens()) {
 					String token = st.nextToken();
-			        System.out.println(token);
+					
+					//Special Tokenization for for line for(int i=0;i<10;i++){
+					if(token.contains("for")){token+="{";}
+					if((token.contains("++")||token.contains("--"))&&(token.contains("{")&&
+						token.contains(")"))){
+						token=token.replace("{", "");
+					}
+					System.out.println(token);
 					toConvert.add(token);
 			     }
 			convertToAssembly(filename);
@@ -105,12 +114,11 @@ public class Disassembler {
 		for(int i=0; i<toConvert.size();i++) {
 			String currLine = toConvert.get(i);
 			
-			//Block Statements
+			//Block Statements Handler (if,if-else,...)
 			if(currLine.contains("{")){
 				String bstate = currLine.substring(0,currLine.indexOf("{"));
 				i=convertBToAssembly(i,bstate,1);
 			}
-			//Line Statement Handler
 			else{
 				convertNBToAssembly(i,i+1,1);
 			}
@@ -161,212 +169,244 @@ public class Disassembler {
 		}
 	}
 	
-	//Block Functions
+	// Block Functions	
 	
-	// 1. Function for Converting Non-Block Statements (must know its encapsulating block: { })
-	// defined by { - int start
-	// defined by } - int end
-	// * tabs may be useful for asm code generation - int tabcount
-	public void convertNBToAssembly(int start, int end, int tabcount){
-		
-		//Place Tabs for .asm Code Readability
-		String tab="";
-		for(int j=0;j<tabcount;j++){tab+="\t";}
-		String  newLine = tab+"mov dl, 0ah \n";
-		newLine +=tab+"mov ah, 02h \n";
-		newLine += tab+"int 21h";
-		
-		for(int i=start;i<end;i++){
-			String currLine = toConvert.get(i);
+		// 1. Function for Converting Non-Block Statements
+		public void convertNBToAssembly(int start, int end, int tabcount){
 			
-			// A. Multi-Level Block Handling
-			if(currLine.contains("{")){
-				String bstate = currLine.substring(0,currLine.indexOf("{"));
-				i=convertBToAssembly(i,bstate,tabcount);
-			}
-			
-			// B. Line for Line Converter
-			else{
-				// 1. Print Message Strings
-				// Cases Handled: System.out.println("Hello world!");
-				if (currLine.contains("System.out")&&currLine.contains("\"")) {
-					String msgString = getMsgString (currLine);
-					dataArray.add("\tmsg" + msgcounter + " db " +  '\''  + msgString + "\'," + "'$'");	
-								
-					codeArray.add(tab+"lea dx, " + "msg" + msgcounter);
-					codeArray.add(tab+"mov ah, 09h");
-					codeArray.add(tab+"int 21h");
-					if(currLine.contains("println")){
-						codeArray.add(newLine);
+			//Place Tabs for .asm Code Readability
+			String tab="";
+			for(int j=0;j<tabcount;j++){tab+="\t";}
+			String  newLine = tab+"mov dl, 0ah \n";
+			newLine +=tab+"mov ah, 02h \n";
+			newLine += tab+"int 21h";
+			for(int i=start;i<end;i++){
+				String currLine = toConvert.get(i);
+				
+				// A. Multi-Level Block Handling
+				if(currLine.contains("{")){
+					String bstate = currLine.substring(0,currLine.indexOf("{"));
+					i=convertBToAssembly(i,bstate,tabcount);
+				}
+				
+				// B. Line for Line Converter
+				else{
+					// 1. Print Message Strings
+					// Cases Handled: System.out.println("Hello world!");
+					if (currLine.contains("System.out")&&currLine.contains("\"")) {
+						String msgString = getMsgString (currLine);
+						dataArray.add("\tmsg" + msgcounter + " db " +  '\''  + msgString + "\'," + "'$'");	
+									
+						codeArray.add(tab+"lea dx, " + "msg" + msgcounter);
+						codeArray.add(tab+"mov ah, 09h");
+						codeArray.add(tab+"int 21h");
+						if(currLine.contains("println")){
+							codeArray.add(newLine);
+						}
+						msgcounter++;
 					}
-					msgcounter++;
-				}
-				// 1.2 Print Numbers
-				// Cases Handled: int a = 255; System.out.println(a);
-				else if (currLine.contains("System.out")&&!currLine.contains("\"")) {
-					includeDisplay=true;
-					String numString = getNumString(currLine);
-					codeArray.add(tab+"mov ax, "+numString);
-					codeArray.add(tab+"call display");
-					if(currLine.contains("println")){codeArray.add(newLine);}
-				}
-				// 2. Integer Variables (Declaration) int a=12; int b;
-				else if (currLine.contains("int")) {
-					String intString = getIntString(currLine);
-								
-					dataArray.add(intString);
-				}
-				// 3. Integer Variables (Assignment) 
-				//Cases Handled: x = 3 + 2; x = 3 - 2; x++; x--; x = 0;
-				else if (currLine.contains("=")||
-					currLine.contains("++")||currLine.contains("--")) {
-					getAssignIntString(currLine,tabcount);
+					// 1.2 Print Variables
+					// Cases Handled: int a = 255; System.out.println(a);
+					// String hello ="hello"; System.out.println (hello);
+					// char c ='c'; System.out.println (c);
+					else if (currLine.contains("System.out")&&!currLine.contains("\"")) {
+						String varString = getVarString(currLine);
+						if(checkStrVar(varString)){
+							codeArray.add(tab+"lea dx, " + varString);
+							codeArray.add(tab+"mov ah, 09h");
+							codeArray.add(tab+"int 21h");
+							if(currLine.contains("println")){codeArray.add(newLine);}
+						}
+						else if(checkCharVar(varString)){
+							codeArray.add(tab+"mov dl, " + varString);
+							codeArray.add(tab+"mov ah, 02h");
+							codeArray.add(tab+"int 21h");
+							if(currLine.contains("println")){codeArray.add(newLine);}
+						}
+						else{
+							includeDisplay=true;
+							codeArray.add(tab+"mov ax, "+varString);
+							codeArray.add(tab+"call display");
+							if(currLine.contains("println")){codeArray.add(newLine);}
+						}
+					}
+					// 2. Integer Variables (Declaration) int a=12; int b;
+					else if (currLine.contains("int")) {
+						String intString = getICString(currLine,"int");
+									
+						dataArray.add(intString);
+					}
+					
+					// 3. Store Message Strings
+					// Cases Handled: String str="hello world";
+					else if(currLine.contains("String")){
+						String msgString = getMsgString (currLine);
+						currLine = currLine.replace("String","");
+						currLine = currLine.replace("static","");
+						String varName = currLine.substring(0,currLine.indexOf("="));
+						varName=varName.trim();
+						dataArray.add("\t" + varName + " db " +  '\''  + msgString + "\'," + "'$'");
+						
+						userStr.add(varName);
+					}
+					
+					// 4. Store Character Variables
+					// Cases Handled: char c='c'; char c; char c,d,e;
+					else if(currLine.contains("char")){
+						
+						String charString = getICString(currLine,"char");
+						dataArray.add(charString);
+					}
+					
+					// 5. Int Variables (Assignment) 
+					//Cases Handled: x = 3 + 2; x = 3 - 2; x = 0;
+					// c='c';
+					else if (currLine.contains("=")
+						||currLine.contains("++")||currLine.contains("--")) {
+						getAssignICString(currLine,tabcount);
+					}
+					
 				}
 			}
+			
 		}
 		
-	}
-	
-	// 2. Function for Converting Block Statements (If,If-Else,For,Do-While,While)
-	public int convertBToAssembly(int start,String bstate, int tabcount){
-		int i=start;
-		if(bstate.contains("if")){
-			// Apply Structure for If Code Only
-			if(checkElse(i+1)==-1){
+		// 2. Function for Converting Block Statements (If,If-Else,For,Do-While,While)
+		public int convertBToAssembly(int start,String bstate, int tabcount){
+			int i=start;
+			if(bstate.contains("if")){
+				// Apply Structure for If Code Only
+				if(checkElse(i+1)==-1){
+					int rend = findEnd(i+1);
+					ifcount++;
+					convertIf(i,rend,tabcount);
+					i=rend;
+				}
+				// Apply Structure for If-Else Code
+				else{
+					int rend = findEnd(i+1);
+					int elseStart = rend+1;
+					int elseEnd = findEnd(elseStart+1);
+					ifelsecount++;
+					convertIfElse(i,rend,elseStart,elseEnd,tabcount);
+					i=elseEnd;
+					
+				}
+			}
+			else if(bstate.contains("while")){
 				int rend = findEnd(i+1);
-				ifcount++;
-				convertIf(i,rend,tabcount);
+				whilecount++;
+				convertWhile(i,rend,tabcount);
 				i=rend;
 			}
-			// Apply Structure for If-Else Code
-			else{
+			else if(bstate.contains("do")){
 				int rend = findEnd(i+1);
-				int elseStart = rend+1;
-				int elseEnd = findEnd(elseStart+1);
-				ifelsecount++;
-				convertIfElse(i,rend,elseStart,elseEnd,tabcount);
-				i=elseEnd;
-				
+				docount++;
+				convertDoWhile(i,rend,tabcount);
+				i=rend;
 			}
-		}
-		else if(bstate.contains("while")){
-			int rend = findEnd(i+1);
-			whilecount++;
-			convertWhile(i,rend,tabcount);
-			i=rend;
-		}
-		else if(bstate.contains("do")){
-			int rend = findEnd(i+1);
-			docount++;
-			convertDoWhile(i,rend,tabcount);
-			i=rend;
-		}
-		else if(bstate.contains("for")){
-			int rend = findEnd(i+3);
-			forcount++;
-			//Insert Code to Convert For Code
-			i=rend;
+			else if(bstate.contains("for")){
+				int rend = findEnd(i+3);
+				forcount++;
+				convertFor(i,rend,tabcount);
+				i=rend;
+			}
+			
+			return i;
 		}
 		
-		return i;
+	//Block Statement Parser Functions
+		
+	// 1. If Block Converter
+	public void convertIf(int start, int end, int tabcount){
+		String bstate=toConvert.get(start);
+		String left="";
+		String right="";
+		String cond="";
+		String jmp="";
+		String cmp="";
+		String label="";
+		String tab="";
+		// A. Add tabs for .asm readability
+		for(int i=0;i<tabcount;i++){tab+="\t";}
+		
+		// B. Set jxx label, Tokenize Left/Right Expressions
+		cond = setCond(bstate);
+		left = setLeftExpr(bstate);
+		right = setRightExpr(bstate);
+		if(checkCharVar(right)){
+			cmp= tab+"mov cl,"+right+"\n";
+			cmp+= tab+"cmp "+left+",cl";
+		}
+		else if(!isInteger(right)&&!right.contains("'")){
+			cmp= tab+"mov cx,"+right+"\n";
+			cmp+= tab+"cmp "+left+",cx";
+		}
+		else{cmp = tab+"cmp "+left+","+right;}
+		
+		// C. Convert Block to asm Code
+			// a. Set Label Names
+			label =tab+ "endif"+ifcount+":";
+			jmp =tab+ cond+" endif"+ifcount;
+			
+			
+			// b. Store asm Code to ArrayList handler
+			codeArray.add(cmp);
+			codeArray.add(jmp);
+			convertNBToAssembly(start+1,end,tabcount+1);
+			codeArray.add(label);
 	}
 	
-	//Block Statement Parser Functions
+	// 2. If-Else Block Converter
+	public void convertIfElse(int ifstart, int ifend, int elsestart, int elseend, int tabcount){
+		String bstate=toConvert.get(ifstart);
+		String left="";
+		String right="";
+		String cond="";
+		String jmpElse="";
+		String jmpIf="";
+		String cmp="";
+		String iflabel="";
+		String elselabel="";
+		String tab="";
+		
+		// A. Add tabs for .asm readability
+		for(int i=0;i<tabcount;i++){tab+="\t";}
+		
+		// B. Set jxx label, Tokenize Left/Right Expressions
+		cond = setCond(bstate);
+		left = setLeftExpr(bstate);
+		right = setRightExpr(bstate);
+		
+		if(checkCharVar(right)){
+			cmp= tab+"mov cl,"+right+"\n";
+			cmp+= tab+"cmp "+left+",cl";
+		}
+		else if(!isInteger(right)&&!right.contains("'")){
+			cmp= tab+"mov cx,"+right+"\n";
+			cmp+= tab+"cmp "+left+",cx";
+		}
+		else{cmp = tab+"cmp "+left+","+right;}
+			
+		// C. Convert block to asm code
+			// a. Set Label Names
+			iflabel=tab+"endifelse"+ifelsecount+":";
+			elselabel=tab+"else_block"+ifelsecount+":";
+			jmpIf=tab+"jmp endifelse"+ifelsecount;
+			jmpElse =tab+ cond+" else_block"+ifelsecount;
+			
+			// b. Store asm Code to ArrayList handler
+			codeArray.add(cmp);
+			codeArray.add(jmpElse);
+			convertNBToAssembly(ifstart+1,ifend,tabcount+1);
+			codeArray.add(jmpIf);
+			codeArray.add(elselabel);
+			convertNBToAssembly(elsestart+1,elseend,tabcount+1);
+			codeArray.add(iflabel);
+		
+		
+	}
 	
-	// 1. If Block Converter
-		public void convertIf(int start, int end, int tabcount){
-			String bstate=toConvert.get(start);
-			String left="";
-			String right="";
-			String cond="";
-			String jmp="";
-			String cmp="";
-			String label="";
-			String tab="";
-			// A. Add tabs for .asm readability
-			for(int i=0;i<tabcount;i++){
-				jmp+="\t";
-				cmp+="\t";
-				label+="\t";
-				tab+="\t";
-			}
-			
-			// B. Set jxx label, Tokenize Left/Right Expressions
-			cond = setCond(bstate);
-			left = setLeftExpr(bstate);
-			right = setRightExpr(bstate);
-			if(!isInteger(right)){
-				codeArray.add(tab+"mov cx,"+right);
-				cmp+= "cmp "+left+",cx";
-			}
-			else{cmp += "cmp "+left+","+right;}
-			
-			// C. Convert Block to asm Code
-				// a. Set Label Names
-				label += "endif"+ifcount+":";
-				jmp += cond+" endif"+ifcount;
-				
-				
-				// b. Store asm Code to ArrayList handler
-				codeArray.add(cmp);
-				codeArray.add(jmp);
-				convertNBToAssembly(start+1,end,tabcount+1);
-				codeArray.add(label);
-		}
-		
-		// 2. If-Else Block Converter
-		public void convertIfElse(int ifstart, int ifend, int elsestart, int elseend, int tabcount){
-			String bstate=toConvert.get(ifstart);
-			String left="";
-			String right="";
-			String cond="";
-			String jmpElse="";
-			String jmpIf="";
-			String cmp="";
-			String iflabel="";
-			String elselabel="";
-			String tab="";
-			
-			// A. Add tabs for .asm readability
-			for(int i=0;i<tabcount;i++){
-				jmpElse+="\t";
-				jmpIf+="\t";
-				cmp+="\t";
-				iflabel+="\t";
-				elselabel+="\t";
-				tab+="\t";
-			}
-			
-			// B. Set jxx label, Tokenize Left/Right Expressions
-			cond = setCond(bstate);
-			left = setLeftExpr(bstate);
-			right = setRightExpr(bstate);
-			
-			if(!isInteger(right)){
-				codeArray.add(tab+"mov cx,"+right);
-				cmp+= "cmp "+left+",cx";
-			}
-			else{cmp += "cmp "+left+","+right;}
-				
-			// C. Convert block to asm code
-				// a. Set Label Names
-				iflabel+="endifelse"+ifelsecount+":";
-				elselabel+="else_block"+ifelsecount+":";
-				jmpIf+="jmp endifelse"+ifelsecount;
-				jmpElse += cond+" else_block"+ifelsecount;
-				
-				// b. Store asm Code to ArrayList handler
-				codeArray.add(cmp);
-				codeArray.add(jmpElse);
-				convertNBToAssembly(ifstart+1,ifend,tabcount+1);
-				codeArray.add(jmpIf);
-				codeArray.add(elselabel);
-				convertNBToAssembly(elsestart+1,elseend,tabcount+1);
-				codeArray.add(iflabel);
-			
-			
-		}
-		
 	// 3. While Block Converter
 	public void convertWhile(int start, int end, int tabcount){
 		String bstate=toConvert.get(start);
@@ -388,8 +428,12 @@ public class Disassembler {
 		left = setLeftExpr(bstate);
 		right = setRightExpr(bstate);
 		
-		if(!isInteger(right)){
-			cmp+= tab+"mov cx,"+right+"\n";
+		if(checkCharVar(right)){
+			cmp= tab+"mov cl,"+right+"\n";
+			cmp+= tab+"cmp "+left+",cl";
+		}
+		else if(!isInteger(right)&&!right.contains("'")){
+			cmp= tab+"mov cx,"+right+"\n";
 			cmp+= tab+"cmp "+left+",cx";
 		}
 		else{cmp = tab+"cmp "+left+","+right;}
@@ -408,7 +452,9 @@ public class Disassembler {
 			convertNBToAssembly(start+1,end,tabcount+1);
 			codeArray.add(jmp);
 			codeArray.add(endwhile);			
+		
 	}
+	
 	// 4. Do-While Block Converter
 	public void convertDoWhile(int start, int end, int tabcount){
 		String bstate=getWhile(start+1);
@@ -428,8 +474,12 @@ public class Disassembler {
 			left = setLeftExpr(bstate);
 			right = setRightExpr(bstate);
 			
-			if(!isInteger(right)){
-				cmp+= tab+"mov cx,"+right+"\n";
+			if(checkCharVar(right)){
+				cmp= tab+"mov cl,"+right+"\n";
+				cmp+= tab+"cmp "+left+",cl";
+			}
+			else if(!isInteger(right)&&!right.contains("'")){
+				cmp= tab+"mov cx,"+right+"\n";
 				cmp+= tab+"cmp "+left+",cx";
 			}
 			else{cmp = tab+"cmp "+left+","+right;}
@@ -446,11 +496,73 @@ public class Disassembler {
 			codeArray.add(cmp);
 			codeArray.add(jxx);
 	}
+	
 	// 5. For Block Converter
 	public void convertFor(int start, int end, int tabcount){
 		
+		// I. For Line Tokenization for(int i=0;i<10;i++)
+			// A. Declaration Initialization for(int i=0) part
+		
+			String declare = toConvert.get(start);
+			declare=declare.replace("for", "");
+			declare=declare.replace("(", "");
+			declare=declare.replace("{", "");
+			toConvert.set(start, declare);
+			
+			convertNBToAssembly(start,start+1,tabcount);
+			
+			// B. Condition Fetch for(..;i<10) part
+			
+			String bstate = toConvert.get(start+1);
+			bstate = "("+bstate;
+			bstate = bstate+")";
+		
+		// II. Asm Convertion
+			
+			String left="";
+			String right="";
+			String cond="";
+			String forlabel="";
+			String endfor="";
+			String cmp="";
+			String jxx="";
+			String jmp="";
+			String tab="";
+			
+			// A. Add tabs for .asm readability
+			for(int j=0;j<tabcount;j++){tab+="\t";}
+			
+			// B. Set jxx label, Tokenize Left/Right Expressions
+			cond = setCond(bstate);
+			left = setLeftExpr(bstate);
+			right = setRightExpr(bstate);
+			
+			if(checkCharVar(right)){
+				cmp= tab+"mov cl,"+right+"\n";
+				cmp+= tab+"cmp "+left+",cl";
+			}
+			else if(!isInteger(right)&&!right.contains("'")){
+				cmp= tab+"mov cx,"+right+"\n";
+				cmp+= tab+"cmp "+left+",cx";
+			}
+			else{cmp = tab+"cmp "+left+","+right;}
+			
+			// C. Convert Block to asm Code
+				// a. Set Label Names
+				forlabel = tab+"forlabel"+forcount+":";
+				jxx = tab+cond+" endfor"+forcount;
+				jmp = tab+"jmp forlabel"+forcount;
+				endfor = tab+"endfor"+forcount+":";
+				
+				// b. Store asm Code to ArrayList handler
+				codeArray.add(forlabel);
+				codeArray.add(cmp);
+				codeArray.add(jxx);
+				convertNBToAssembly(start+3,end,tabcount+1); // for loop body
+				convertNBToAssembly(start+2,start+3,tabcount+1); //inc statement
+				codeArray.add(jmp);
+				codeArray.add(endfor);
 	}
-	
 	
 	//Helper Functions for Block Statements
 	
@@ -470,7 +582,6 @@ public class Disassembler {
 			}
 			return -1;
 		}
-	
 	// 2. If-Else vs If Block Identifier
 		public int checkElse(int start){
 			int opencount=0;
@@ -486,11 +597,10 @@ public class Disassembler {
 					closecount++;
 					
 				}
-				
+					
 			}
 			return -1;
 		}
-	
 	// 3. Fetch while condition of dowhile statement
 		public String getWhile(int start){
 			int opencount=0;
@@ -508,7 +618,7 @@ public class Disassembler {
 			}
 			return null;
 		}
-	
+		
 	//Miscellaneous Helper Functions
 	
 	// 1. Function for Message Strings
@@ -537,12 +647,13 @@ public class Disassembler {
 			
 			g++;
 			newLine = currLine.substring(g, h);
+			if(newLine.length()==0){newLine=" ";} // Special Case for blank strings
 			return newLine;
 			
 		} //end function
 	
-	// 1.2 Function for Printing Variables
-		public String getNumString(String currLine){
+	// 1.2 Function for Printing Numbers
+		public String getVarString(String currLine){
 			String newLine="";
 			currLine=currLine.trim();
 			int a = currLine.indexOf("(");
@@ -551,11 +662,21 @@ public class Disassembler {
 			return newLine;
 		}
 		
-	// 2. Function for Int Variables
-		public String getIntString(String currLine){
+	// 2. Function for Int & Char Variables
+		public String getICString(String currLine, String type){
+			String dtype="";
+			String dsize="";
+			if(type.compareTo("int")==0){
+				dtype="int";
+				dsize=" dw ";
+			}
+			else if(type.compareTo("char")==0){
+				dtype="char";
+				dsize=" db ";
+			}
 			String newLine="";
 			currLine=currLine.trim();
-			currLine=currLine.replaceFirst("int", "");
+			currLine=currLine.replaceFirst(dtype, "");
 			currLine=currLine.replaceFirst("static", "");
 			currLine=currLine.replace(" ", "");
 			// First Case: a=0; or a=255;
@@ -564,24 +685,44 @@ public class Disassembler {
 				int end = currLine.length();
 				int value = Integer.parseInt(currLine.substring(a+1,end));
 				String varname = currLine.substring(0,a);
-				newLine ="\t"+ varname + " dw "+ value;
+				newLine ="\t"+ varname + dsize+ value;
 				
+				//Store Character Variable Name if Input was a Character
+				if(type.compareTo("char")==0){charStr.add(varname);}
 			}
 			// Second Case: a; longvarname;
 			else{
-				int end = currLine.length();
-				String varname = currLine.substring(0,end);
-				newLine ="\t"+ varname + " dw ?";
+				// Multiple Declaration int x,y,z;
+				if(currLine.contains(",")){
+					StringTokenizer st = new StringTokenizer(currLine, ",");
+					while (st.hasMoreTokens()) {
+						String token = st.nextToken();
+						newLine+="\t" + token + dsize+ "?\n";
+						//Store Character Variable Name if Input was a Character
+						if(type.compareTo("char")==0){charStr.add(token);}
+					}
+					newLine=newLine.substring(0,newLine.length()-1); // remove last \n
+				}
+				// Single Declaration int x;
+				else{
+					int end = currLine.length();
+					String varname = currLine.substring(0,end);
+					newLine ="\t"+ varname +dsize+ "?";
+					//Store Character Variable Name if Input was a Character
+					if(type.compareTo("char")==0){charStr.add(varname);}
+				}
 			}
+			
 			return newLine;
 		}// end function
 	
-	// 3. Function for Int Variables (Mid-code Assignment)
-		public void getAssignIntString(String currLine, int tabcount){
+	// 3. Function for Int and Char Variables (Mid-code Assignment)
+		public void getAssignICString(String currLine, int tabcount){
 			String tab="";
 			for(int j=0;j<tabcount;j++){tab+="\t";}
 			currLine=currLine.trim();
 			currLine=currLine.replace(" ","");
+			
 			// x++;
 			if(currLine.contains("++")){
 				int a = currLine.indexOf("+");
@@ -611,14 +752,14 @@ public class Disassembler {
 					fOp = currLine.substring(a+1,findex);
 					sOp = currLine.substring(findex+1,end);
 					// x = x + y; x = x - y;
-					if(!isInteger(fOp)){
+					if(!isInteger(fOp)&&!checkCharVar(varname)){
 						codeArray.add(tab+"mov cx,"+fOp);
 						codeArray.add(tab+"mov "+varname+",cx");
 					}
 					else{
 						codeArray.add(tab+"mov "+varname+","+fOp);
 					}
-					if(!isInteger(sOp)){
+					if(!isInteger(sOp)&&!checkCharVar(varname)){
 						codeArray.add(tab+"mov cx,"+sOp);
 						codeArray.add(tab+op+varname+",cx");
 					}
@@ -631,57 +772,91 @@ public class Disassembler {
 					int eq = currLine.indexOf("=");
 					int end = currLine.length();
 					sOp = currLine.substring(eq+1,end);
-					if(!isInteger(sOp)){
+					if(!isInteger(sOp)&&!checkCharVar(varname)){
 						codeArray.add(tab+"mov cx,"+sOp);
 						codeArray.add(tab+"mov "+varname+",cx");
 					}
-					else{codeArray.add(tab+"mov "+varname+","+sOp);}
+					else{
+						//Cases Handled: c='c' and c=d; 
+						if(checkCharVar(sOp)){
+							codeArray.add(tab+"mov cl,"+sOp);
+							codeArray.add(tab+"mov "+varname+",cl");
+						}
+						else{
+							codeArray.add(tab+"mov "+varname+","+sOp);
+						}
+					}
 					
 				}
 			}
 		}//end function
-	
-		// 4. Function for Equality Comparators (jxx setter)
-		public String setCond(String bstate){
-			String cond="";
-			if(bstate.contains("==")){cond = "jne";}
-			else if(bstate.contains(">=")){cond = "jl";}
-			else if(bstate.contains("<=")){cond = "jg";}
-			else if(bstate.contains(">")){cond = "jle";}
-			else if(bstate.contains("<")){cond = "jge";}
-			return cond;
-		}
 		
-		// 4.1 Function for Equality Comparators (jxx setter) (branches true)
+	// 4. Function for Equality Comparators (jxx setter) (branches false)
+	public String setCond(String bstate){
+		String cond="";
+		if(bstate.contains("==")){cond = "jne";}
+		else if(bstate.contains("!=")){cond = "je";}
+		else if(bstate.contains(">=")){cond = "jl";}
+		else if(bstate.contains("<=")){cond = "jg";}
+		else if(bstate.contains(">")){cond = "jle";}
+		else if(bstate.contains("<")){cond = "jge";}
+		return cond;
+	}
+	
+	// 4.1 Function for Equality Comparators (jxx setter) (branches true)
 		public String setDoCond(String bstate){
 			String cond="";
 			if(bstate.contains("==")){cond = "je";}
+			else if(bstate.contains("!=")){cond = "jne";}
 			else if(bstate.contains(">=")){cond = "jge";}
 			else if(bstate.contains("<=")){cond = "jle";}
 			else if(bstate.contains(">")){cond = "jg";}
 			else if(bstate.contains("<")){cond = "jl";}
 			return cond;
 		}
-		
-		// 5. Tokenize Left Side of Equality Comparator
-		public String setLeftExpr(String bstate){
-			String left="";
-			if(bstate.contains("==")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("="));}
-			else if(bstate.contains(">=")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf(">"));}
-			else if(bstate.contains("<=")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("<"));}
-			else if(bstate.contains(">")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf(">"));}
-			else if(bstate.contains("<")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("<"));}
-			return left;
+	
+	// 5. Tokenize Left Side of Equality Comparator
+	public String setLeftExpr(String bstate){
+		String left="";
+		if(bstate.contains("==")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("="));}
+		else if(bstate.contains("!=")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("!"));}
+		else if(bstate.contains(">=")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf(">"));}
+		else if(bstate.contains("<=")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("<"));}
+		else if(bstate.contains(">")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf(">"));}
+		else if(bstate.contains("<")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("<"));}
+		return left;
+	}
+	// 6. Tokenize Right Side of Equality Comparator
+	public String setRightExpr(String bstate){
+		String right="";
+		if(bstate.contains("==")){right = bstate.substring(bstate.indexOf("=",bstate.indexOf("=")+1)+1,bstate.indexOf(")"));}
+		if(bstate.contains("!=")){right = bstate.substring(bstate.indexOf("=")+1,bstate.indexOf(")"));}
+		else if(bstate.contains(">=")){right = bstate.substring(bstate.indexOf("=")+1,bstate.indexOf(")"));}
+		else if(bstate.contains("<=")){right = bstate.substring(bstate.indexOf("=")+1,bstate.indexOf(")"));}
+		else if(bstate.contains(">")){right = bstate.substring(bstate.indexOf(">")+1,bstate.indexOf(")"));}
+		else if(bstate.contains("<")){right = bstate.substring(bstate.indexOf("<")+1,bstate.indexOf(")"));}
+		return right;
+	}
+	// 7. Check if Variable is a user defined string
+	public boolean checkStrVar(String currLine){
+		for(String item: userStr){
+			item=item.trim();
+			if(currLine.compareTo(item)==0){
+				return true;
+			}
 		}
-		// 6. Tokenize Right Side of Equality Comparator
-		public String setRightExpr(String bstate){
-			String right="";
-			if(bstate.contains("==")){right = bstate.substring(bstate.indexOf("=",bstate.indexOf("=")+1)+1,bstate.indexOf(")"));}
-			else if(bstate.contains(">=")){right = bstate.substring(bstate.indexOf("=")+1,bstate.indexOf(")"));}
-			else if(bstate.contains("<=")){right = bstate.substring(bstate.indexOf("=")+1,bstate.indexOf(")"));}
-			else if(bstate.contains(">")){right = bstate.substring(bstate.indexOf(">")+1,bstate.indexOf(")"));}
-			else if(bstate.contains("<")){right = bstate.substring(bstate.indexOf("<")+1,bstate.indexOf(")"));}
-			return right;
+		return false;
+	}
+	// 8. Check if Variable is a user defined character
+		public boolean checkCharVar(String currLine){
+			
+			for(String item: charStr){
+				item=item.trim();
+				if(currLine.compareTo(item)==0){
+					return true;
+				}
+			}
+			return false;
 		}
 	
 	public String getNewFilename(String filename) {
@@ -708,6 +883,5 @@ public class Disassembler {
 	    // only got here if we didn't return false
 	    return true;
 	}
-	
 	
 } //end class
