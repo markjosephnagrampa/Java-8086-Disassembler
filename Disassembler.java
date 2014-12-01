@@ -107,12 +107,12 @@ public class Disassembler {
 			
 			//Block Statements
 			if(currLine.contains("{")){
-				//Insert Code for Handling (If,Else,While,etc.)
+				String bstate = currLine.substring(0,currLine.indexOf("{"));
+				i=convertBToAssembly(i,bstate,1);
 			}
 			//Line Statement Handler
 			else{
-				//Insert Code for Translating a java Non-Block Statement into Assembly
-				//Set includeDisplay to true if Printing of Variables is required
+				convertNBToAssembly(i,i+1,1);
 			}
 		}
 		
@@ -181,7 +181,8 @@ public class Disassembler {
 			
 			// A. Multi-Level Block Handling
 			if(currLine.contains("{")){
-				//Insert Code to Handle Inner If-Else-While, etc. Blocks
+				String bstate = currLine.substring(0,currLine.indexOf("{"));
+				i=convertBToAssembly(i,bstate,tabcount);
 			}
 			
 			// B. Line for Line Converter
@@ -195,7 +196,9 @@ public class Disassembler {
 					codeArray.add(tab+"lea dx, " + "msg" + msgcounter);
 					codeArray.add(tab+"mov ah, 09h");
 					codeArray.add(tab+"int 21h");
-					codeArray.add(newLine);
+					if(currLine.contains("println")){
+						codeArray.add(newLine);
+					}
 					msgcounter++;
 				}
 				// 1.2 Print Numbers
@@ -205,7 +208,7 @@ public class Disassembler {
 					String numString = getNumString(currLine);
 					codeArray.add(tab+"mov ax, "+numString);
 					codeArray.add(tab+"call display");
-					codeArray.add(newLine);
+					if(currLine.contains("println")){codeArray.add(newLine);}
 				}
 				// 2. Integer Variables (Declaration) int a=12; int b;
 				else if (currLine.contains("int")) {
@@ -228,17 +231,43 @@ public class Disassembler {
 	public int convertBToAssembly(int start,String bstate, int tabcount){
 		int i=start;
 		if(bstate.contains("if")){
-			//Differentiate Between If and If-Else Code
-		}
-		else if(bstate.contains("do")){
-			//Add Code for dowhile
+			// Apply Structure for If Code Only
+			if(checkElse(i+1)==-1){
+				int rend = findEnd(i+1);
+				ifcount++;
+				convertIf(i,rend,tabcount);
+				i=rend;
+			}
+			// Apply Structure for If-Else Code
+			else{
+				int rend = findEnd(i+1);
+				int elseStart = rend+1;
+				int elseEnd = findEnd(elseStart+1);
+				ifelsecount++;
+				convertIfElse(i,rend,elseStart,elseEnd,tabcount);
+				i=elseEnd;
+				
+			}
 		}
 		else if(bstate.contains("while")){
-			//Add Code for while
+			int rend = findEnd(i+1);
+			whilecount++;
+			//Insert Code to Convert While Code
+			i=rend;
+		}
+		else if(bstate.contains("do")){
+			int rend = findEnd(i+1);
+			docount++;
+			//Insert Code to Convert DoWhile Code
+			i=rend;
 		}
 		else if(bstate.contains("for")){
-			//Add Code for for
+			int rend = findEnd(i+3);
+			forcount++;
+			//Insert Code to Convert For Code
+			i=rend;
 		}
+		
 		return i;
 	}
 	
@@ -246,13 +275,111 @@ public class Disassembler {
 	
 	// 1. If Block Converter
 		public void convertIf(int start, int end, int tabcount){
-			// Add Code Here...
+			String bstate=toConvert.get(start);
+			String left="";
+			String right="";
+			String cond="";
+			String jmp="";
+			String cmp="";
+			String label="";
+			String tab="";
+			// A. Add tabs for .asm readability
+			for(int i=0;i<tabcount;i++){
+				jmp+="\t";
+				cmp+="\t";
+				label+="\t";
+				tab+="\t";
+			}
+			
+			// B. Set jxx label, Tokenize Left/Right Expressions
+			cond = setCond(bstate);
+			left = setLeftExpr(bstate);
+			right = setRightExpr(bstate);
+			if(!isInteger(right)){
+				codeArray.add(tab+"mov cx,"+right);
+				cmp+= "cmp "+left+",cx";
+			}
+			else{cmp += "cmp "+left+","+right;}
+			
+			// C. Convert Block to asm Code
+				// a. Set Label Names
+				label += "endif"+ifcount+":";
+				jmp += cond+" endif"+ifcount;
+				
+				
+				// b. Store asm Code to ArrayList handler
+				codeArray.add(cmp);
+				codeArray.add(jmp);
+				convertNBToAssembly(start+1,end,tabcount+1);
+				codeArray.add(label);
 		}
-	// 2. If-Else Block Converter
-	// Contains more arguments because if-else deals with 2 statement blocks
+		
+		// 2. If-Else Block Converter
 		public void convertIfElse(int ifstart, int ifend, int elsestart, int elseend, int tabcount){
-			// Add Code Here...
+			String bstate=toConvert.get(ifstart);
+			String left="";
+			String right="";
+			String cond="";
+			String jmpElse="";
+			String jmpIf="";
+			String cmp="";
+			String iflabel="";
+			String elselabel="";
+			String tab="";
+			
+			// A. Add tabs for .asm readability
+			for(int i=0;i<tabcount;i++){
+				jmpElse+="\t";
+				jmpIf+="\t";
+				cmp+="\t";
+				iflabel+="\t";
+				elselabel+="\t";
+				tab+="\t";
+			}
+			
+			// B. Set jxx label, Tokenize Left/Right Expressions
+			cond = setCond(bstate);
+			left = setLeftExpr(bstate);
+			right = setRightExpr(bstate);
+			
+			if(!isInteger(right)){
+				codeArray.add(tab+"mov cx,"+right);
+				cmp+= "cmp "+left+",cx";
+			}
+			else{cmp += "cmp "+left+","+right;}
+				
+			// C. Convert block to asm code
+				// a. Set Label Names
+				iflabel+="endifelse"+ifelsecount+":";
+				elselabel+="else_block"+ifelsecount+":";
+				jmpIf+="jmp endifelse"+ifelsecount;
+				jmpElse += cond+" else_block"+ifelsecount;
+				
+				// b. Store asm Code to ArrayList handler
+				codeArray.add(cmp);
+				codeArray.add(jmpElse);
+				convertNBToAssembly(ifstart+1,ifend,tabcount+1);
+				codeArray.add(jmpIf);
+				codeArray.add(elselabel);
+				convertNBToAssembly(elsestart+1,elseend,tabcount+1);
+				codeArray.add(iflabel);
+			
+			
 		}
+		
+	// 3. While Block Converter
+	public void convertWhile(int start, int end, int tabcount){
+		// Add Code Here...
+	}
+	// 4. Do-While Block Converter
+	public void convertDoWhile(int start, int end, int tabcount){
+		// Add Code Here...
+	}
+	// 5. For Block Converter
+	public void convertFor(int start, int end, int tabcount){
+		
+	}
+	
 	
 	//Helper Functions for Block Statements
 	
@@ -291,6 +418,24 @@ public class Disassembler {
 				
 			}
 			return -1;
+		}
+	
+	// 3. Fetch while condition of dowhile statement
+		public String getWhile(int start){
+			int opencount=0;
+			int closecount=-1;
+			for(int j=start;j<toConvert.size();j++){
+				String line = toConvert.get(j);
+				if(opencount==closecount&&!line.contains("while")){break;}
+				if(opencount==closecount&&line.contains("while")){
+					return line;
+				}
+				if(line.contains("{"))opencount++;
+				else if(line.contains("}")){
+					closecount++;	
+				}
+			}
+			return null;
 		}
 	
 	//Miscellaneous Helper Functions
@@ -435,6 +580,18 @@ public class Disassembler {
 			else if(bstate.contains("<")){cond = "jge";}
 			return cond;
 		}
+		
+		// 4.1 Function for Equality Comparators (jxx setter) (branches true)
+		public String setDoCond(String bstate){
+			String cond="";
+			if(bstate.contains("==")){cond = "je";}
+			else if(bstate.contains(">=")){cond = "jge";}
+			else if(bstate.contains("<=")){cond = "jle";}
+			else if(bstate.contains(">")){cond = "jg";}
+			else if(bstate.contains("<")){cond = "jl";}
+			return cond;
+		}
+		
 		// 5. Tokenize Left Side of Equality Comparator
 		public String setLeftExpr(String bstate){
 			String left="";
