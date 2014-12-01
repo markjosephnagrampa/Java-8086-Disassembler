@@ -252,13 +252,13 @@ public class Disassembler {
 		else if(bstate.contains("while")){
 			int rend = findEnd(i+1);
 			whilecount++;
-			//Insert Code to Convert While Code
+			convertWhile(i,rend,tabcount);
 			i=rend;
 		}
 		else if(bstate.contains("do")){
 			int rend = findEnd(i+1);
 			docount++;
-			//Insert Code to Convert DoWhile Code
+			convertDoWhile(i,rend,tabcount);
 			i=rend;
 		}
 		else if(bstate.contains("for")){
@@ -369,11 +369,82 @@ public class Disassembler {
 		
 	// 3. While Block Converter
 	public void convertWhile(int start, int end, int tabcount){
-		// Add Code Here...
+		String bstate=toConvert.get(start);
+		String left="";
+		String right="";
+		String cond="";
+		String whilelabel="";
+		String endwhile="";
+		String cmp="";
+		String jxx="";
+		String jmp="";
+		String tab="";
+		
+		// A. Add tabs for .asm readability
+		for(int j=0;j<tabcount;j++){tab+="\t";}
+		
+		// B. Set jxx label, Tokenize Left/Right Expressions
+		cond = setCond(bstate);
+		left = setLeftExpr(bstate);
+		right = setRightExpr(bstate);
+		
+		if(!isInteger(right)){
+			cmp+= tab+"mov cx,"+right+"\n";
+			cmp+= tab+"cmp "+left+",cx";
+		}
+		else{cmp = tab+"cmp "+left+","+right;}
+		
+		// C. Convert Block to asm Code
+			// a. Set Label Names
+			whilelabel = tab+"whilelabel"+whilecount+":";
+			jxx = tab+cond+" endwhile"+whilecount;
+			jmp = tab+"jmp whilelabel"+whilecount;
+			endwhile = tab+"endwhile"+whilecount+":";
+			
+			// b. Store asm Code to ArrayList handler
+			codeArray.add(whilelabel);
+			codeArray.add(cmp);
+			codeArray.add(jxx);
+			convertNBToAssembly(start+1,end,tabcount+1);
+			codeArray.add(jmp);
+			codeArray.add(endwhile);			
 	}
 	// 4. Do-While Block Converter
 	public void convertDoWhile(int start, int end, int tabcount){
-		// Add Code Here...
+		String bstate=getWhile(start+1);
+		String left="";
+		String right="";
+		String cond="";
+		String label="";
+		String jxx="";
+		String tab="";
+		String cmp="";
+		
+		// A. Add tabs for .asm readability
+		for(int j=0;j<tabcount;j++){tab+="\t";}
+		
+		// B. Set jxx label, Tokenize Left/Right Expressions
+			cond = setDoCond(bstate);
+			left = setLeftExpr(bstate);
+			right = setRightExpr(bstate);
+			
+			if(!isInteger(right)){
+				cmp+= tab+"mov cx,"+right+"\n";
+				cmp+= tab+"cmp "+left+",cx";
+			}
+			else{cmp = tab+"cmp "+left+","+right;}
+			
+		// C. Convert Block to asm Code
+			
+			// a. Set Label Names
+			label=tab+"do"+docount+":";
+			jxx=tab+cond+" do"+docount;
+			
+			// b. Store asm Code to ArrayList handler
+			codeArray.add(label);
+			convertNBToAssembly(start+1,end,tabcount+1);
+			codeArray.add(cmp);
+			codeArray.add(jxx);
 	}
 	// 5. For Block Converter
 	public void convertFor(int start, int end, int tabcount){
