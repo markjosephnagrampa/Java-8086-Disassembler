@@ -205,6 +205,14 @@ public class Disassembler {
 						}
 						msgcounter++;
 					}
+					// System.out.print - Char Argument
+					else if (currLine.contains("System.out")&&currLine.contains("'")) {
+						String varString = getVarString(currLine);
+						codeArray.add(tab+"mov dl, " + varString);
+						codeArray.add(tab+"mov ah, 02h");
+						codeArray.add(tab+"int 21h");
+						if(currLine.contains("println")){codeArray.add(newLine);}
+					}
 					// 1.2 Print Variables
 					// Cases Handled: int a = 255; System.out.println(a);
 					// String hello ="hello"; System.out.println (hello);
