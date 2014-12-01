@@ -257,11 +257,44 @@ public class Disassembler {
 	//Helper Functions for Block Statements
 	
 	// 1. Function to find the corresponding '}' of a block statement
+		public int findEnd(int start){
+			int opencount=0;
+			int closecount=-1;
+			for(int j=start;j<toConvert.size();j++){
+				String line = toConvert.get(j);
+				if(line.contains("{"))opencount++;
+				else if(line.contains("}")){
+					closecount++;
+					if(opencount==closecount){
+						return j;
+					}
+				}
+			}
+			return -1;
+		}
 	
 	// 2. If-Else vs If Block Identifier
+		public int checkElse(int start){
+			int opencount=0;
+			int closecount=-1;
+			for(int j=start;j<toConvert.size();j++){
+				String line = toConvert.get(j);
+				if(opencount==closecount&&!line.contains("else")){break;}
+				if(opencount==closecount&&line.contains("else")){
+					return j;
+				}
+				if(line.contains("{"))opencount++;
+				else if(line.contains("}")){
+					closecount++;
+					
+				}
+				
+			}
+			return -1;
+		}
 	
 	//Miscellaneous Helper Functions
-		
+	
 	// 1. Function for Message Strings
 		public String getMsgString (String currLine) {
 			
@@ -391,6 +424,37 @@ public class Disassembler {
 				}
 			}
 		}//end function
+	
+		// 4. Function for Equality Comparators (jxx setter)
+		public String setCond(String bstate){
+			String cond="";
+			if(bstate.contains("==")){cond = "jne";}
+			else if(bstate.contains(">=")){cond = "jl";}
+			else if(bstate.contains("<=")){cond = "jg";}
+			else if(bstate.contains(">")){cond = "jle";}
+			else if(bstate.contains("<")){cond = "jge";}
+			return cond;
+		}
+		// 5. Tokenize Left Side of Equality Comparator
+		public String setLeftExpr(String bstate){
+			String left="";
+			if(bstate.contains("==")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("="));}
+			else if(bstate.contains(">=")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf(">"));}
+			else if(bstate.contains("<=")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("<"));}
+			else if(bstate.contains(">")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf(">"));}
+			else if(bstate.contains("<")){left = bstate.substring(bstate.indexOf("(")+1,bstate.indexOf("<"));}
+			return left;
+		}
+		// 6. Tokenize Right Side of Equality Comparator
+		public String setRightExpr(String bstate){
+			String right="";
+			if(bstate.contains("==")){right = bstate.substring(bstate.indexOf("=",bstate.indexOf("=")+1)+1,bstate.indexOf(")"));}
+			else if(bstate.contains(">=")){right = bstate.substring(bstate.indexOf("=")+1,bstate.indexOf(")"));}
+			else if(bstate.contains("<=")){right = bstate.substring(bstate.indexOf("=")+1,bstate.indexOf(")"));}
+			else if(bstate.contains(">")){right = bstate.substring(bstate.indexOf(">")+1,bstate.indexOf(")"));}
+			else if(bstate.contains("<")){right = bstate.substring(bstate.indexOf("<")+1,bstate.indexOf(")"));}
+			return right;
+		}
 	
 	public String getNewFilename(String filename) {
 		
