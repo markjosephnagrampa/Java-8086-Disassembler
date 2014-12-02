@@ -240,9 +240,7 @@ public class Disassembler {
 					}
 					// 2. Integer Variables (Declaration) int a=12; int b;
 					else if (currLine.contains("int")) {
-						String intString = getICString(currLine,"int");
-									
-						dataArray.add(intString);
+						initIC(currLine,"int",tabcount);			
 					}
 					
 					// 3. Store Message Strings
@@ -261,9 +259,7 @@ public class Disassembler {
 					// 4. Store Character Variables
 					// Cases Handled: char c='c'; char c; char c,d,e;
 					else if(currLine.contains("char")){
-						
-						String charString = getICString(currLine,"char");
-						dataArray.add(charString);
+						initIC(currLine,"char",tabcount);
 					}
 					
 					// 5. Int Variables (Assignment) 
@@ -670,8 +666,11 @@ public class Disassembler {
 			return newLine;
 		}
 		
-	// 2. Function for Int & Char Variables
-		public String getICString(String currLine, String type){
+	// 2. Function for Initializing Int & Char Variables
+		public void initIC(String currLine, String type, int tabcount){
+			String tab="";
+			// Add tabs for .asm readability
+			for(int i=0;i<tabcount;i++){tab+="\t";}
 			String dtype="";
 			String dsize="";
 			if(type.compareTo("int")==0){
@@ -682,27 +681,67 @@ public class Disassembler {
 				dtype="char";
 				dsize=" db ";
 			}
-			String newLine="";
 			currLine=currLine.trim();
-			currLine=currLine.replaceFirst(dtype, "");
-			currLine=currLine.replaceFirst("static", "");
+			currLine=currLine.replace(dtype, "");
+			currLine=currLine.replace("static", "");
 			currLine=currLine.replace(" ", "");
 			// First Case: a=0; or a=255;
 			if(currLine.contains("=")){
 				int a = currLine.indexOf("=");
 				int end = currLine.length();
-				int value = Integer.parseInt(currLine.substring(a+1,end));
+				String right = currLine.substring(a+1,end);
 				String varname = currLine.substring(0,a);
-				newLine ="\t"+ varname + dsize+ value;
+				String fOp,sOp;
+				// Case: int x=a+b;
+				if(right.contains("+")||right.contains("-")){
+					String sign="";
+					String op="";
+					if(currLine.contains("+")){sign="+";op="add ";}
+					if(currLine.contains("-")){sign="-";op="sub ";}
+					
+					int findex = currLine.indexOf(sign);
+					end = currLine.length();
+					fOp = currLine.substring(a+1,findex);
+					sOp = currLine.substring(findex+1,end);
+					// int x = x + y; int x = x - y;
+					dataArray.add("\t"+varname+dsize+"?");
+					
+					if(!isInteger(fOp)&&!checkCharVar(varname)){
+						codeArray.add(tab+"mov cx,"+fOp);
+						codeArray.add(tab+"mov "+varname+",cx");
+					}
+					else{
+						codeArray.add(tab+"mov "+varname+","+fOp);
+					}
+					if(!isInteger(sOp)&&!checkCharVar(varname)){
+						codeArray.add(tab+"mov cx,"+sOp);
+						codeArray.add(tab+op+varname+",cx");
+					}
+					else{
+						codeArray.add(tab+op+varname+","+sOp);
+					}
+				}
+				// Case: int x=0; char e='e'; char e=f; 
+				else{
+					if(checkCharVar(right)){
+						dataArray.add("\t"+varname+dsize+"?");
+						codeArray.add(tab+"mov cl,"+right);
+						codeArray.add(tab+"mov "+varname+",cl");
+					}
+					else{dataArray.add("\t"+varname+dsize+right);}
+				
+				}
 				
 				//Store Character Variable Name if Input was a Character
 				if(type.compareTo("char")==0){charStr.add(varname);}
 			}
 			// Second Case: a; longvarname;
 			else{
+				String newLine="";
 				// Multiple Declaration int x,y,z;
 				if(currLine.contains(",")){
 					StringTokenizer st = new StringTokenizer(currLine, ",");
+					
 					while (st.hasMoreTokens()) {
 						String token = st.nextToken();
 						newLine+="\t" + token + dsize+ "?\n";
@@ -719,9 +758,9 @@ public class Disassembler {
 					//Store Character Variable Name if Input was a Character
 					if(type.compareTo("char")==0){charStr.add(varname);}
 				}
+				
+				dataArray.add(newLine);
 			}
-			
-			return newLine;
 		}// end function
 	
 	// 3. Function for Int and Char Variables (Mid-code Assignment)
@@ -780,7 +819,7 @@ public class Disassembler {
 					int eq = currLine.indexOf("=");
 					int end = currLine.length();
 					sOp = currLine.substring(eq+1,end);
-					if(!isInteger(sOp)&&!checkCharVar(varname)){
+					if(!isInteger(sOp)&&!checkCharVar(varname)&&!sOp.contains("'")){
 						codeArray.add(tab+"mov cx,"+sOp);
 						codeArray.add(tab+"mov "+varname+",cx");
 					}
