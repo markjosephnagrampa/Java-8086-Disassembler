@@ -89,6 +89,9 @@ public class Assembler {
 			String varname = currLine.substring(0, g).trim();
 			String vardata = currLine.substring(l, currLine.length()).trim();
 			
+			System.out.println(varname);
+			System.out.println(vardata);
+			
 			vardata = fixData(vardata);
 			
 			varnameArray.add(varname.trim());
@@ -107,6 +110,71 @@ public class Assembler {
 			}
 			ctrVar++;
 		}
+		
+		boolean codeSeg = false;
+		
+		//gets the .code section
+		while(input.hasNextLine()){
+			String currInput = input.nextLine().trim();
+			
+			if((!currInput.contains(".code")&&!codeSeg)||currInput.contains("proc")||currInput.contains("end main")||currInput.contains("main endp")){
+				continue;
+			}else
+			if(currInput.compareTo("")==0){
+				continue;
+			}else
+			if(currInput.contains("@data")){
+				continue;
+			}
+			codeSeg=true;
+			
+			//tokenize line by separating the three components. 
+			//mov ax, 0
+			//operation destination source
+			ArrayList<String> currentLine = tokenizeLine(currInput);
+			String operation = currentLine.get(0);
+			String destination = currentLine.get(1);
+			String source = currentLine.get(2);
+			
+			if((operation.compareTo("lea")==0)||(operation.compareTo("mov")==0)){
+				switch(destination){
+					case "ax": registersArrayDW[0] = source;
+							   registersArrayDB[0] = "";
+							   registersArrayDB[1] = "";
+					   break;
+					case "bx": registersArrayDW[1] = source;
+							   registersArrayDB[2] = "";
+							   registersArrayDB[3] = "";
+					   break;
+					case "cx": registersArrayDW[2] = source;
+							   registersArrayDB[4] = "";
+							   registersArrayDB[5] = "";
+					   break;
+					case "dx": registersArrayDW[3] = source;
+							   registersArrayDB[6] = "";
+							   registersArrayDB[7] = "";
+					   break;
+					case "ah": registersArrayDB[0] = source;
+					   break;
+					case "al": registersArrayDB[1] = source;
+					   break;
+					case "bh": registersArrayDB[2] = source;
+					   break;
+					case "bl": registersArrayDB[3] = source;
+					   break;
+					case "ch": registersArrayDB[4] = source;
+					   break;
+					case "cl": registersArrayDB[5] = source;
+					   break;
+					case "dh": registersArrayDB[6] = source;
+					   break;
+					case "dl": registersArrayDB[7] = source;
+					   break;
+				}
+			}
+		}
+		outputToFile+="\n\n\t}\n}";
+		System.out.println(outputToFile);
 	}
 	
 	//fixes variable data from .data
@@ -156,5 +224,43 @@ public class Assembler {
 			vardata.replace('$', ' ');
 		}
 		return vardata;
+	}
+	
+	//tokenize the lines in the .code section
+	//separates the three components: operation, destination, source
+	public ArrayList<String> tokenizeLine(String currInput){
+		ArrayList<String> lineReturned = new ArrayList<String>();
+		int operationBreak = 0;
+		int destinationBreak = 0;
+		for (int i = 0; i < currInput.length(); i++) {
+			char currC = currInput.charAt(i);
+			if (currC == ' '){
+				operationBreak = i;
+				break;
+			}
+		}
+		for (int j = operationBreak + 1; j < currInput.length(); j++) {
+			char currC = currInput.charAt(j);
+			if (currC == ','){
+				destinationBreak = j;
+				break;
+			}
+		}
+		String operation = currInput.substring(0, operationBreak).trim();
+		String destination = "";
+		String source = "";
+		if(destinationBreak == 0){
+			destination = currInput.substring(operationBreak+1).trim();
+		}else{
+			destination = currInput.substring(operationBreak+1, destinationBreak).trim();
+			source = currInput.substring(destinationBreak+1).trim();
+			if(source.contains("offset")){
+				source = source.replace("offset", "").trim();
+			}
+		}
+		lineReturned.add(operation);
+		lineReturned.add(destination);
+		lineReturned.add(source);
+		return lineReturned;
 	}
 }
