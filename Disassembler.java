@@ -14,6 +14,7 @@ public class Disassembler {
 	static int msgcounter=1;
 	static int ifcount=0;
 	static int ifelsecount=0;
+	static int elseifcount=0;
 	static int forcount=0;
 	static int docount=0;
 	static int whilecount=0;
@@ -41,6 +42,8 @@ public class Disassembler {
 			String sourceCode="";
 			while ((line = inputStream.readLine()) != null) {
 				line=line.trim();
+				//Ignore Comments
+				if(line.contains("//")){line = line.substring(0,line.indexOf("/"));}
 				sourceCode+=line;
 			}
 			
@@ -195,7 +198,7 @@ public class Disassembler {
 					// Cases Handled: System.out.println("Hello world!");
 					if (currLine.contains("System.out")&&currLine.contains("\"")) {
 						String msgString = getMsgString (currLine);
-						dataArray.add("\tmsg" + msgcounter + " db " +  '\''  + msgString + "\'," + "'$'");	
+						dataArray.add("\tmsg" + msgcounter + " db " +  '\''  + msgString + "," + "'$'");	
 									
 						codeArray.add(tab+"lea dx, " + "msg" + msgcounter);
 						codeArray.add(tab+"mov ah, 09h");
@@ -251,7 +254,7 @@ public class Disassembler {
 						currLine = currLine.replace("static","");
 						String varName = currLine.substring(0,currLine.indexOf("="));
 						varName=varName.trim();
-						dataArray.add("\t" + varName + " db " +  '\''  + msgString + "\'," + "'$'");
+						dataArray.add("\t" + varName + " db " +  '\''  + msgString + "," + "'$'");
 						
 						userStr.add(varName);
 					}
@@ -286,7 +289,29 @@ public class Disassembler {
 					convertIf(i,rend,tabcount);
 					i=rend;
 				}
-				// Apply Structure for If-Else Code
+				/*// Apply Structure for If-Else-If Code
+				else if(checkIfElse(i+1)!=-1){
+					//Add initial If and Else if Code
+					int ifend = findEnd(i+1);
+					int eifstart = ifend+1;
+					int eifend = findEnd(eifstart+1);
+					// If - Else If Case
+					if(checkElse(eifstart+1)==-1){
+						convertIfElseIf(start,ifend,eifstart,eifend,tabcount);
+						i=eifend;
+					}
+					//  If - Else If - Else Case
+					else{
+						int estart = eifend+1;
+						int eend = findEnd(estart+1);
+						convertIfElseIf(start,ifend,eifstart,eifend,estart,eend,tabcount);
+						i=eend;
+					}
+		
+					
+				}*/
+				
+				// Apply Structure for If-Else Codes
 				else{
 					int rend = findEnd(i+1);
 					int elseStart = rend+1;
@@ -605,6 +630,25 @@ public class Disassembler {
 			}
 			return -1;
 		}
+	// 2.1 If vs If Else If Block Identifier
+		public int checkIfElse(int start){
+			int opencount=0;
+			int closecount=-1;
+			for(int j=start;j<toConvert.size();j++){
+				String line = toConvert.get(j);
+				if(opencount==closecount&&!(line.contains("else if"))){break;}
+				if(opencount==closecount&&line.contains("else if")){
+					return j;
+				}
+				if(line.contains("{"))opencount++;
+				else if(line.contains("}")){
+					closecount++;
+					
+				}
+					
+			}
+			return -1;
+		}
 	// 3. Fetch while condition of dowhile statement
 		public String getWhile(int start){
 			int opencount=0;
@@ -632,26 +676,17 @@ public class Disassembler {
 			int h = 0;
 			String newLine = "";
 			
-			for (int i = 0; i < currLine.length(); i++) {
-				char curr = currLine.charAt(i);
-				if (curr == '"') {
-					g = i;
-					break;
-				}
-				
-			}
+			// Handle ' Cases
+			currLine = currLine.replace("'", "");
+			// Handle \n Case
+			currLine = currLine.replace("\\n", "',0ah");
 			
-			for (int j = 0; j < currLine.length(); j++) {
-				char curr = currLine.charAt(j);
-				if (curr == '"' && j != g) {
-					h = j;
-					break;
-				}
-			}
-			
+			g = currLine.indexOf("\"");
+			h = currLine.indexOf("\"",currLine.indexOf("\"")+1);
 			g++;
 			newLine = currLine.substring(g, h);
 			if(newLine.length()==0){newLine=" ";} // Special Case for blank strings
+			if(!currLine.contains("0ah")){newLine+="'";} // Special Case for No Newline Strings
 			return newLine;
 			
 		} //end function
@@ -673,93 +708,110 @@ public class Disassembler {
 			for(int i=0;i<tabcount;i++){tab+="\t";}
 			String dtype="";
 			String dsize="";
+			String register="";
 			if(type.compareTo("int")==0){
 				dtype="int";
 				dsize=" dw ";
+				register="cx";
 			}
 			else if(type.compareTo("char")==0){
 				dtype="char";
 				dsize=" db ";
+				register="cl";
 			}
 			currLine=currLine.trim();
 			currLine=currLine.replace(dtype, "");
 			currLine=currLine.replace("static", "");
 			currLine=currLine.replace(" ", "");
-			// First Case: a=0; or a=255;
-			if(currLine.contains("=")){
-				int a = currLine.indexOf("=");
-				int end = currLine.length();
-				String right = currLine.substring(a+1,end);
-				String varname = currLine.substring(0,a);
-				String fOp,sOp;
-				// Case: int x=a+b;
-				if(right.contains("+")||right.contains("-")){
-					String sign="";
-					String op="";
-					if(currLine.contains("+")){sign="+";op="add ";}
-					if(currLine.contains("-")){sign="-";op="sub ";}
+			StringTokenizer st = new StringTokenizer(currLine,",");
+			while(st.hasMoreTokens()){
+				String token = st.nextToken();
+				// First Case: a=0; or a=255;
+				if(token.contains("=")){
+					int a = token.indexOf("=");
+					int end = token.length();
+					String right = token.substring(a+1,end);
+					String varname = token.substring(0,a);
+					String fOp,sOp;
 					
-					int findex = currLine.indexOf(sign);
-					end = currLine.length();
-					fOp = currLine.substring(a+1,findex);
-					sOp = currLine.substring(findex+1,end);
-					// int x = x + y; int x = x - y;
-					dataArray.add("\t"+varname+dsize+"?");
+					// Case int x= a++; x= a--;
 					
-					if(!isInteger(fOp)&&!checkCharVar(varname)){
-						codeArray.add(tab+"mov cx,"+fOp);
-						codeArray.add(tab+"mov "+varname+",cx");
-					}
-					else{
-						codeArray.add(tab+"mov "+varname+","+fOp);
-					}
-					if(!isInteger(sOp)&&!checkCharVar(varname)){
-						codeArray.add(tab+"mov cx,"+sOp);
-						codeArray.add(tab+op+varname+",cx");
-					}
-					else{
-						codeArray.add(tab+op+varname+","+sOp);
-					}
-				}
-				// Case: int x=0; char e='e'; char e=f; 
-				else{
-					if(checkCharVar(right)){
+					if(right.contains("++")){
+						right = token.substring(a+1,token.indexOf("+"));
 						dataArray.add("\t"+varname+dsize+"?");
-						codeArray.add(tab+"mov cl,"+right);
-						codeArray.add(tab+"mov "+varname+",cl");
+						codeArray.add(tab+"inc "+right);
+						codeArray.add(tab+"mov "+register+","+right);
+						codeArray.add(tab+"mov "+varname+","+register);
 					}
-					else{dataArray.add("\t"+varname+dsize+right);}
-				
-				}
-				
-				//Store Character Variable Name if Input was a Character
-				if(type.compareTo("char")==0){charStr.add(varname);}
-			}
-			// Second Case: a; longvarname;
-			else{
-				String newLine="";
-				// Multiple Declaration int x,y,z;
-				if(currLine.contains(",")){
-					StringTokenizer st = new StringTokenizer(currLine, ",");
+					else if(right.contains("--")){
+						right = token.substring(a+1,token.indexOf("-"));
+						dataArray.add("\t"+varname+dsize+"?");
+						codeArray.add(tab+"dec "+right);
+						codeArray.add(tab+"mov "+register+","+right);
+						codeArray.add(tab+"mov "+varname+","+register);
+					}
 					
-					while (st.hasMoreTokens()) {
-						String token = st.nextToken();
-						newLine+="\t" + token + dsize+ "?\n";
-						//Store Character Variable Name if Input was a Character
-						if(type.compareTo("char")==0){charStr.add(token);}
+					// Case: int x=a+b;
+					else if(right.contains("+")||right.contains("-")){
+						String sign="";
+						String op="";
+						if(token.contains("+")){sign="+";op="add ";}
+						if(token.contains("-")){sign="-";op="sub ";}
+						
+						int findex = token.indexOf(sign);
+						end = token.length();
+						fOp = token.substring(a+1,findex);
+						sOp = token.substring(findex+1,end);
+						// int x = x + y; int x = x - y;
+						dataArray.add("\t"+varname+dsize+"?");
+						
+						if(!isInteger(fOp)&&!checkCharVar(varname)){
+							codeArray.add(tab+"mov cx,"+fOp);
+							codeArray.add(tab+"mov "+varname+",cx");
+						}
+						else{
+							codeArray.add(tab+"mov "+varname+","+fOp);
+						}
+						if(!isInteger(sOp)&&!checkCharVar(varname)){
+							codeArray.add(tab+"mov cx,"+sOp);
+							codeArray.add(tab+op+varname+",cx");
+						}
+						else{
+							codeArray.add(tab+op+varname+","+sOp);
+						}
 					}
-					newLine=newLine.substring(0,newLine.length()-1); // remove last \n
-				}
-				// Single Declaration int x;
-				else{
-					int end = currLine.length();
-					String varname = currLine.substring(0,end);
-					newLine ="\t"+ varname +dsize+ "?";
+					// Case: int x=0; char e='e'; char e=f; int x=a;
+					else{
+						if(checkCharVar(right)){
+							dataArray.add("\t"+varname+dsize+"?");
+							codeArray.add(tab+"mov cl,"+right);
+							codeArray.add(tab+"mov "+varname+",cl");
+						}
+						else if(!isInteger(right)&&!right.contains("'")){
+							dataArray.add("\t"+varname+dsize+"?");
+							codeArray.add(tab+"mov cx,"+right);
+							codeArray.add(tab+"mov "+varname+",cx");
+						}
+						else{dataArray.add("\t"+varname+dsize+right);}
+					
+					}
+					
 					//Store Character Variable Name if Input was a Character
 					if(type.compareTo("char")==0){charStr.add(varname);}
 				}
-				
-				dataArray.add(newLine);
+				// Second Case: a; longvarname;
+				else{
+					String newLine="";
+					// Single Declaration int x;
+					
+						int end = token.length();
+						String varname = token.substring(0,end);
+						newLine ="\t"+ varname +dsize+ "?";
+						//Store Character Variable Name if Input was a Character
+						if(type.compareTo("char")==0){charStr.add(varname);}
+					
+					dataArray.add(newLine);
+				}
 			}
 		}// end function
 	
@@ -782,6 +834,50 @@ public class Disassembler {
 				String varname = currLine.substring(0,a);
 				codeArray.add(tab+"dec "+ varname);
 			}
+			//x+=a;
+			else if(currLine.contains("+=")){
+				int a = currLine.indexOf("+");
+				int b = currLine.indexOf("=");
+				String varname = currLine.substring(0,a);
+				String fOp = currLine.substring(b+1,currLine.length());
+				
+				if(!isInteger(fOp)&&!checkCharVar(varname)&&!fOp.contains("'")){
+					codeArray.add(tab+"mov cx,"+fOp);
+					codeArray.add(tab+"add "+varname+",cx");
+				}
+				else{ 
+					if(checkCharVar(fOp)){
+						codeArray.add(tab+"mov cl,"+fOp);
+						codeArray.add(tab+"add "+varname+",cl");
+					}
+					else{
+						codeArray.add(tab+"add "+varname+","+fOp);
+					}
+				}
+			}
+			//x-=a;
+			else if(currLine.contains("-=")){
+				int a = currLine.indexOf("-");
+				int b = currLine.indexOf("=");
+				String varname = currLine.substring(0,a);
+				String fOp = currLine.substring(b+1,currLine.length());
+				
+				if(!isInteger(fOp)&&!checkCharVar(varname)&&!fOp.contains("'")){
+					codeArray.add(tab+"mov cx,"+fOp);
+					codeArray.add(tab+"sub "+varname+",cx");
+				}
+				else{ 
+					if(checkCharVar(fOp)){
+						codeArray.add(tab+"mov cl,"+fOp);
+						codeArray.add(tab+"sub "+varname+",cl");
+					}
+					else{
+						codeArray.add(tab+"sub "+varname+","+fOp);
+					}
+				}
+				
+			}
+			
 			else{
 				String fOp="";
 				String sOp="";
