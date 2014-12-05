@@ -128,6 +128,15 @@ public class Assembler {
 		
 		//initialize needed variables for checking
 		boolean codeSeg = false;
+		boolean ifElse = false;
+		boolean elseTag = false;
+		boolean possibleLoop = false;
+		boolean whileLoop = false;
+		boolean doSet = false;
+		int elseCount = 0;
+		String currLabel = "";
+		String currLoopLabel = "";
+		String conditionEnder = "";
 		
 		//gets the .code section
 		while(input.hasNextLine()){
@@ -148,6 +157,52 @@ public class Assembler {
 			//current line is a comment
 			if(currInput.trim().charAt(0)==';'){
 				continue;
+			}else
+			//current line is a label
+			if(currInput.contains(":")){
+				String currInputOrig = currInput;
+				currInput = currInput.replaceAll(":","");
+				//current line is the else block
+				if(currInput.compareTo(currLabel)==0){
+					outputToFile+="\n\t}else{\n";
+					elseTag = true;
+					currLabel = "";
+				}
+				//current line is the end of if block
+				else if(currInput.compareTo(conditionEnder)==0){
+					int ctr3 = 0;
+					while(ctr3 <= elseCount){
+						outputToFile+="\n\t\t}";
+						ctr3++;
+					}
+					elseCount = 0;
+					elseTag = false;
+					ifElse = false;
+				}
+				//current line is the start of a loop
+				else if(currLoopLabel.compareTo("")==0){
+					currLoopLabel = currInput;
+					possibleLoop = true;
+					Scanner newScan = new Scanner(new File(filename));
+					String scan = newScan.nextLine().trim();
+					while(scan.compareTo(currInputOrig)!=0){
+						scan = newScan.nextLine().trim();
+					}
+					scan = newScan.nextLine().trim();
+					while(scan.compareTo("")==0&&newScan.hasNextLine()){
+						scan = newScan.nextLine().trim();
+					}
+					//after label, there is cmp, assuming that the loop is a while loop.
+					if(scan.contains("cmp")){
+						whileLoop = true;
+					}
+					//after label, code starts, assuming that the loop is a do while loop.
+					else{
+						outputToFile+="\n\tdo{\n";
+						doSet = true;
+					}
+					newScan.close();
+				}
 			}
 			codeSeg=true;
 			
@@ -251,6 +306,376 @@ public class Assembler {
 			else if(operation.compareTo("int")==0){
 				outputToFile = doInterrupt(destination, registersArrayDB, registersArrayDW, outputToFile, varnameArray, vardataArray);
 			}
+			//the operation is either add or sub
+			else if(operation.compareTo("add")==0||operation.compareTo("sub")==0){
+				boolean isAdd = false;
+				if(operation.compareTo("add")==0){
+					isAdd = true;
+				}
+				int x = 0; int y = 0;
+				y = checkVar(varnameArray, vardataArray, source);
+				switch(destination){
+				case "ax":  	x = checkVar(varnameArray, vardataArray, registersArrayDW[0]);
+								if(isAdd){
+									registersArrayDW[0] = Integer.toString(x + y);
+								}else{
+									registersArrayDW[0] = Integer.toString(x - y);
+								}
+				   break;
+				case "bx": 		x = checkVar(varnameArray, vardataArray, registersArrayDW[1]);
+								if(isAdd){
+									registersArrayDW[1] = Integer.toString(x + y);
+								}else{
+									registersArrayDW[1] = Integer.toString(x - y);
+								}
+				   break;
+				case "cx": 		x = checkVar(varnameArray, vardataArray, registersArrayDW[2]);
+								if(isAdd){
+									registersArrayDW[2] = Integer.toString(x + y);
+								}else{
+									registersArrayDW[2] = Integer.toString(x - y);
+								}
+				   break;
+				case "dx": 		x = checkVar(varnameArray, vardataArray, registersArrayDW[3]);
+								if(isAdd){
+									registersArrayDW[3] = Integer.toString(x + y);
+								}else{
+									registersArrayDW[3] = Integer.toString(x - y);
+								}
+				   break;
+				case "ah": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[0]);
+								if(isAdd){
+									registersArrayDB[0] = Integer.toString(x + y);
+								}else{
+									registersArrayDB[0] = Integer.toString(x - y);
+								}
+				   break;
+				case "al":  	x = checkVar(varnameArray, vardataArray, registersArrayDB[1]);
+								if(isAdd){
+									registersArrayDB[1] = Integer.toString(x + y);
+								}else{
+									registersArrayDB[1] = Integer.toString(x - y);
+								}
+				   break;
+				case "bh":  	x = checkVar(varnameArray, vardataArray, registersArrayDB[2]);
+								if(isAdd){
+									registersArrayDB[2] = Integer.toString(x + y);
+								}else{
+									registersArrayDB[2] = Integer.toString(x - y);
+								}
+				   break;
+				case "bl":  	x = checkVar(varnameArray, vardataArray, registersArrayDB[3]);
+								if(isAdd){
+									registersArrayDB[3] = Integer.toString(x + y);
+								}else{
+									registersArrayDB[3] = Integer.toString(x - y);
+								}
+				   break;
+				case "ch": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[4]);
+								if(isAdd){
+									registersArrayDB[4] = Integer.toString(x + y);
+								}else{
+									registersArrayDB[4] = Integer.toString(x - y);
+								}
+				   break;
+				case "cl": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[5]);
+								if(isAdd){
+									registersArrayDB[5] = Integer.toString(x + y);
+								}else{
+									registersArrayDB[5] = Integer.toString(x - y);
+								}
+				   break;
+				case "dh": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[6]);
+								if(isAdd){
+									registersArrayDB[6] = Integer.toString(x + y);
+								}else{
+									registersArrayDB[6] = Integer.toString(x - y);
+								}
+				   break;
+				case "dl": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[7]);
+								if(isAdd){
+									registersArrayDB[7] = Integer.toString(x + y);
+								}else{
+									registersArrayDB[7] = Integer.toString(x - y);
+								}
+				   break;
+				default: if(varnameArray.contains(destination)){
+								ArrayList<String> sourceArr = new ArrayList<String>();
+								switch(source){
+								case "ax": y = checkVar(varnameArray, vardataArray, registersArrayDW[0]);
+									break;
+								case "bx": y = checkVar(varnameArray, vardataArray, registersArrayDW[1]);
+									break;
+								case "cx": y = checkVar(varnameArray, vardataArray, registersArrayDW[2]);
+									break;
+								case "dx": y = checkVar(varnameArray, vardataArray, registersArrayDW[3]);
+									break;
+								case "ah": y = checkVar(varnameArray, vardataArray, registersArrayDB[0]);
+									break;
+								case "al": y = checkVar(varnameArray, vardataArray, registersArrayDB[1]);
+									break;
+								case "bh": y = checkVar(varnameArray, vardataArray, registersArrayDB[2]);
+									break;
+								case "bl": y = checkVar(varnameArray, vardataArray, registersArrayDB[3]);
+									break;
+								case "ch": y = checkVar(varnameArray, vardataArray, registersArrayDB[4]);
+									break;
+								case "cl": y = checkVar(varnameArray, vardataArray, registersArrayDB[5]);
+									break;
+								case "dh": y = checkVar(varnameArray, vardataArray, registersArrayDB[6]);
+									break;
+								case "dl": y = checkVar(varnameArray, vardataArray, registersArrayDB[7]);
+									break;
+									default: if(disass.isInteger(source)){
+													y = Integer.parseInt(source);
+												}else{
+													source = source.replaceAll("\'", "");
+													y = source.charAt(0);
+												}
+								   break;
+							    }
+								x = checkVar(varnameArray, vardataArray, destination);
+								//variable add or subtract
+								if(isAdd){
+									sourceArr.add(Integer.toString(x + y));
+									outputToFile+="\n\t\t"+varnameArray.get(varnameArray.indexOf(destination))+"_0 = "+x+" + "+y+ ";\n";
+								}else{
+									sourceArr.add(Integer.toString(x - y));
+									outputToFile+="\n\t\t"+varnameArray.get(varnameArray.indexOf(destination))+"_0 = "+x+" - "+y+ ";\n";
+								}
+								vardataArray.set(varnameArray.indexOf(destination),sourceArr);
+						 }
+						 break;
+				}
+			}
+			//operation increments or decrements
+			else if(operation.compareTo("inc")==0||operation.compareTo("dec")==0){
+				int x = 0;
+				boolean isAdd = false;
+				if(operation.compareTo("inc")==0){
+					isAdd=true;
+				}
+				switch(destination){
+				case "ax":  	x = checkVar(varnameArray, vardataArray, registersArrayDW[0]);
+								if(isAdd){
+									registersArrayDW[0] = Integer.toString(x + 1);
+								}else{
+									registersArrayDW[0] = Integer.toString(x - 1);
+								}
+				   break;
+				case "bx": 		x = checkVar(varnameArray, vardataArray, registersArrayDW[1]);
+								if(isAdd){
+									registersArrayDW[1] = Integer.toString(x + 1);
+								}else{
+									registersArrayDW[1] = Integer.toString(x - 1);
+								}
+				   break;
+				case "cx": 		x = checkVar(varnameArray, vardataArray, registersArrayDW[2]);
+								if(isAdd){
+									registersArrayDW[2] = Integer.toString(x + 1);
+								}else{
+									registersArrayDW[2] = Integer.toString(x - 1);
+								}
+				   break;
+				case "dx": 		x = checkVar(varnameArray, vardataArray, registersArrayDW[3]);
+								if(isAdd){
+									registersArrayDW[3] = Integer.toString(x + 1);
+								}else{
+									registersArrayDW[3] = Integer.toString(x - 1);
+								}
+				   break;
+				case "ah": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[0]);
+								if(isAdd){
+									registersArrayDB[0] = Integer.toString(x + 1);
+								}else{
+									registersArrayDB[0] = Integer.toString(x - 1);
+								}
+				   break;
+				case "al":  	x = checkVar(varnameArray, vardataArray, registersArrayDB[1]);
+								if(isAdd){
+									registersArrayDB[1] = Integer.toString(x + 1);
+								}else{
+									registersArrayDB[1] = Integer.toString(x - 1);
+								}
+				   break;
+				case "bh":  	x = checkVar(varnameArray, vardataArray, registersArrayDB[2]);
+								if(isAdd){
+									registersArrayDB[2] = Integer.toString(x + 1);
+								}else{
+									registersArrayDB[2] = Integer.toString(x - 1);
+								}
+				   break;
+				case "bl":  	x = checkVar(varnameArray, vardataArray, registersArrayDB[3]);
+								if(isAdd){
+									registersArrayDB[3] = Integer.toString(x + 1);
+								}else{
+									registersArrayDB[3] = Integer.toString(x - 1);
+								}
+				   break;
+				case "ch": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[4]);
+								if(isAdd){
+									registersArrayDB[4] = Integer.toString(x + 1);
+								}else{
+									registersArrayDB[4] = Integer.toString(x - 1);
+								}
+				   break;
+				case "cl": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[5]);
+								if(isAdd){
+									registersArrayDB[5] = Integer.toString(x + 1);
+								}else{
+									registersArrayDB[5] = Integer.toString(x - 1);
+								}
+				   break;
+				case "dh": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[6]);
+								if(isAdd){
+									registersArrayDB[6] = Integer.toString(x + 1);
+								}else{
+									registersArrayDB[6] = Integer.toString(x - 1);
+								}
+				   break;
+				case "dl": 		x = checkVar(varnameArray, vardataArray, registersArrayDB[7]);
+								if(isAdd){
+									registersArrayDB[7] = Integer.toString(x + 1);
+								}else{
+									registersArrayDB[7] = Integer.toString(x - 1);
+								}
+				   break;
+				default: if(varnameArray.contains(destination)){
+								ArrayList<String> sourceArr = new ArrayList<String>();
+								x = checkVar(varnameArray, vardataArray, destination);
+								//variable is incremented or decremented
+								if(isAdd){
+									sourceArr.add(Integer.toString(x + 1));
+									outputToFile+="\n\t\t"+varnameArray.get(varnameArray.indexOf(destination))+"_0++;\n";
+								}else{
+									sourceArr.add(Integer.toString(x - 1));
+									outputToFile+="\n\t\t"+varnameArray.get(varnameArray.indexOf(destination))+"_0--;\n";
+								}
+								vardataArray.set(varnameArray.indexOf(destination),sourceArr);
+						 }
+						 break;
+				}
+			}
+			//cmp operation is to be performed
+			else if(operation.compareTo("cmp")==0){
+				String nextLine = input.nextLine().trim();
+				while(nextLine.compareTo("")==0&&input.hasNextLine()){
+					nextLine = input.nextLine().trim();
+				}
+				ArrayList<String> currentNLine = tokenizeLine(nextLine);
+				String operationCMP = currentNLine.get(0);
+				String destinationCMP = currentNLine.get(1);
+				//the block could be a if else statement
+				if(!ifElse&&!possibleLoop){
+					currLabel = destinationCMP;
+					ifElse = true;
+				}
+				//the block is not a while loop
+				else if(!whileLoop){
+					currLabel = destinationCMP;
+				}
+				/* possibleLoop - if the block is a loop
+				 * whileLoop - if block is a while loop
+				 * doSet - if block is a do while loop
+				 * switches between possible conditions
+				 */
+				switch(operationCMP){
+				case "jl": if(possibleLoop){
+								if(whileLoop){
+									outputToFile+="\n\twhile("+destination+"_0 >= "+source+"){\n";
+								}else if(doSet){
+									outputToFile+="\n\t}while("+destination+"_0 < "+source+");\n";
+									doSet=false;
+									possibleLoop=false;
+									currLoopLabel="";
+								}
+							}else{
+								outputToFile+="\n\tif("+destination+"_0 >= "+source+"){\n";
+							}
+					break;
+				case "jle": if(possibleLoop){
+								if(whileLoop){
+									outputToFile+="\n\twhile("+destination+"_0 > "+source+"){\n";
+								}else if(doSet){
+									outputToFile+="\n\t}while("+destination+"_0 <= "+source+");\n";
+									doSet=false;
+									possibleLoop=false;
+									currLoopLabel="";
+								}
+							}else{
+								outputToFile+="\n\tif("+destination+"_0 > "+source+"){\n";
+							}
+					break;
+				case "jg": if(possibleLoop){
+								if(whileLoop){
+									outputToFile+="\n\twhile("+destination+"_0 <= "+source+"){\n";
+								}else if(doSet){
+									outputToFile+="\n\t}while("+destination+"_0 > "+source+");\n";
+									doSet=false;
+									possibleLoop=false;
+									currLoopLabel="";
+								}
+							}else{
+								outputToFile+="\n\tif("+destination+"_0 <= "+source+"){\n";
+							}
+					break;
+				case "jge": if(possibleLoop){
+								if(whileLoop){
+									outputToFile+="\n\twhile("+destination+"_0 < "+source+"){\n";
+								}else if(doSet){
+									outputToFile+="\n\t}while("+destination+"_0 >= "+source+");\n";
+									doSet=false;
+									possibleLoop=false;
+									currLoopLabel="";
+								}
+							}else{
+								outputToFile+="\n\tif("+destination+"_0 < "+source+"){\n";
+							}
+					break;
+				case "je": if(possibleLoop){
+								if(whileLoop){
+									outputToFile+="\n\twhile("+destination+"_0 != "+source+"){\n";
+								}else if(doSet){
+									outputToFile+="\n\t}while("+destination+"_0 == "+source+");\n";
+									doSet=false;
+									possibleLoop=false;
+									currLoopLabel="";
+								}
+							}else{
+								outputToFile+="\n\tif("+destination+"_0 != "+source+"){\n";
+							}
+					break;
+				case "jne": if(possibleLoop){
+								if(whileLoop){
+									outputToFile+="\n\twhile("+destination+"_0 == "+source+"){\n";
+								}else if(doSet){
+									outputToFile+="\n\t}while("+destination+"_0 != "+source+");\n";
+									doSet=false;
+									possibleLoop=false;
+									currLoopLabel="";
+								}
+							}else{
+								outputToFile+="\n\tif("+destination+"_0 == "+source+"){\n";
+							}
+					break;
+				}
+			}
+			//ends condition or loop
+			else if(operation.compareTo("jmp")==0){
+				conditionEnder = destination;
+				if(ifElse){
+					ifElse = false;
+				}
+				if(elseTag){
+					elseCount++;
+				}
+				if(possibleLoop&&whileLoop){
+					possibleLoop = false;
+					whileLoop = false;
+					outputToFile += "\n\t\t}\n";
+				}
+			}
+		}
 		input.close();
 		outputToFile+="\n\n\t}\n}";
 		//prints the generated code to an output file. 
@@ -377,7 +802,7 @@ public class Assembler {
 		lineReturned.add(source);
 		return lineReturned;
 	}
-
+	
 	//do the interrupts that needs to be done
 	//outputs corresponding results to file
 	public String doInterrupt(String interrupt, String[] regArrayDB, String[] regArrayDW, String outputToFile, ArrayList<String> varnameArray, ArrayList<ArrayList<String>> vardataArray){
@@ -427,4 +852,27 @@ public class Assembler {
 		return outputToFile;
 	}
 	
+	//returns the ascii/integer value
+	//checks if the value being asked for is from a variable or not from a register
+	public int checkVar(ArrayList<String> varnameArray, ArrayList<ArrayList<String>> vardataArray, String source){
+		Disassembler disass = new Disassembler();
+		int toReturn = 0;
+		if(varnameArray.contains(source)){
+			if(disass.isInteger(vardataArray.get(varnameArray.indexOf(source)).get(0))){
+				toReturn = Integer.parseInt(vardataArray.get(varnameArray.indexOf(source)).get(0));
+			}else{
+				toReturn = vardataArray.get(varnameArray.indexOf(source)).get(0).charAt(0);
+			}
+		}else if(source.compareTo("ax")!=0 ||source.compareTo("bx")!=0 ||source.compareTo("cx")!=0 ||source.compareTo("dx")!=0 
+				||source.compareTo("ah")!=0 ||source.compareTo("al")!=0 ||source.compareTo("bh")!=0 ||source.compareTo("bl")!=0 
+				||source.compareTo("ch")!=0 ||source.compareTo("cl")!=0 ||source.compareTo("dh")!=0 ||source.compareTo("dl")!=0){
+			if(disass.isInteger(source)){
+				toReturn = Integer.parseInt(source);
+			}else{
+				toReturn = source.charAt(0);
+			} 
+		}
+		return toReturn;
+	}
+
 }
