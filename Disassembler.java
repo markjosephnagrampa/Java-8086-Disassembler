@@ -19,11 +19,6 @@ public class Disassembler {
 	static int docount=0;
 	static int whilecount=0;
 	static boolean includeDisplay=false;
-	
-	public static void main(String[] args){
-		Disassembler d = new Disassembler();
-		d.toAssembly();
-	}
 
 	public void toAssembly() {
 		
