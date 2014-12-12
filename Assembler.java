@@ -3,10 +3,6 @@ import java.util.Scanner;
 import java.util.ArrayList;
 
 public class Assembler {
-	public static void main(String[] args){
-		Assembler ass = new Assembler();
-		ass.toJava();
-	}
 	
 	public void toJava() {
 		String filename = "";
